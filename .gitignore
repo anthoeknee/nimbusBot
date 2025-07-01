@@ -142,3 +142,4 @@ vite.config.ts.timestamp-*
 GEMINI.md
 mise.toml
 bun.lockb
+*.js
