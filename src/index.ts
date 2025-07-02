@@ -1,9 +1,9 @@
-import { Client, Collection, GatewayIntentBits } from "discord.js";
+import { Client, Collection, GatewayIntentBits, ChatInputCommandInteraction, Message } from "discord.js";
 import { config } from "./config";
 import { loadCommands, loadEvents } from "./utils/loader";
-import { db } from "./services/database";
+import { database } from "./services/db";
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
+export const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
 
 async function main() {
   // Load commands and events
@@ -36,9 +36,10 @@ async function main() {
 
   // Initialize and synchronize the database
   try {
-    console.log("Synchronizing database...");
-    await db.sequelize.sync({ alter: true });
-    console.log("Database synchronized successfully.");
+    // Prisma does not require sync like Sequelize.
+    // Optionally, you can do a test query to ensure connection:
+    await database.users.count(); // Test connection
+    console.log("Database connection successful.");
   } catch (error) {
     console.error("Unable to connect to the database:", error);
     process.exit(1);

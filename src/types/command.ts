@@ -1,4 +1,4 @@
-import { Client, ChatInputCommandInteraction, Message } from "discord.js";
+import { Client, ChatInputCommandInteraction, Message, SlashCommandBuilder } from "discord.js";
 
 // Command metadata interface
 export interface CommandMeta {
@@ -10,13 +10,18 @@ export interface CommandMeta {
   // Add more metadata fields as needed (e.g., options, permissions)
 }
 
-// Command execution signature
+
 export interface Command {
-  meta: CommandMeta;
-  run: (
-    client: Client,
-    interactionOrContext: ChatInputCommandInteraction | { message: Message; args: string[] }
-  ) => Promise<void>;
+  meta: {
+    name: string;
+    description: string;
+    category?: string;
+    examples?: string | string[];
+    permissions?: string | string[];
+    cooldown?: number;
+  };
+  data: SlashCommandBuilder;
+  execute: (interaction: ChatInputCommandInteraction) => Promise<void>;
 }
 
 // Command context (customize as needed)

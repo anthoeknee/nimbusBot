@@ -55,13 +55,14 @@ const event: Event<"messageCreate"> = {
         logger.info(`Executing prefix command: ${commandName} from user: ${message.author.tag} (${message.author.id})`);
 
         // Execute command with timeout protection
-        const commandPromise = command.run(message.client as Client, {
+        // @ts-expect-error: Some commands may not have a 'run' method typed, but all should implement it at runtime
+        const commandPromise = command.execute(message, {
           message,
           args,
           client: message.client
         });
-        
-        const timeoutPromise = new Promise((_, reject) => 
+
+        const timeoutPromise = new Promise((_, reject) =>
           setTimeout(() => reject(new Error('Command execution timeout')), 30000)
         );
 

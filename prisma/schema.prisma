@@ -1,0 +1,58 @@
+// schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          Int       @id @default(autoincrement())
+  discordId   String    @unique
+  username    String
+  displayName String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  settings    Setting[] @relation("UserSettings")
+  memories    Memory[]
+}
+
+model Guild {
+  id            Int       @id @default(autoincrement())
+  discordGuildId String   @unique
+  name          String
+  iconUrl       String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  settings      Setting[] @relation("GuildSettings")
+  memories      Memory[]
+}
+
+// Polymorphic Setting workaround: use two separate relations
+model Setting {
+  id         Int      @id @default(autoincrement())
+  targetType String   // 'user' or 'guild'
+  user       User?    @relation("UserSettings", fields: [userId], references: [id])
+  userId     Int?
+  guild      Guild?   @relation("GuildSettings", fields: [guildId], references: [id])
+  guildId    Int?
+  key        String
+  value      Json
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Memory {
+  id        Int      @id @default(autoincrement())
+  user      User?    @relation(fields: [userId], references: [id])
+  userId    Int?
+  guild     Guild?   @relation(fields: [guildId], references: [id])
+  guildId   Int?
+  content   String
+  embedding Json     // Or use a vector extension if needed
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

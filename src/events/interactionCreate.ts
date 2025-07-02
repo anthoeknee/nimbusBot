@@ -1,7 +1,7 @@
 // src/events/interactionCreate.ts
 import { Event } from "../types/event";
 import { Command } from "../types/command";
-import { Client, Interaction } from "discord.js";
+import { Client, Interaction, MessageFlags } from "discord.js";
 import { logger } from "../utils/logger";
 
 // Global execution lock to prevent multiple simultaneous executions
@@ -41,7 +41,7 @@ const event: Event<"interactionCreate"> = {
           if (!interaction.replied && !interaction.deferred) {
             await interaction.reply({ 
               content: `❌ No command matching ${interaction.commandName} was found.`, 
-              ephemeral: true 
+              flags: MessageFlags.Ephemeral
             });
           }
           return;
@@ -50,7 +50,7 @@ const event: Event<"interactionCreate"> = {
         logger.debug(`Executing command: ${interaction.commandName} for user ${interaction.user.tag}`);
 
         // Execute command with timeout protection
-        const commandPromise = command.run(interaction.client as Client, interaction);
+        const commandPromise = command.execute(interaction);
         const timeoutPromise = new Promise((_, reject) => 
           setTimeout(() => reject(new Error('Command execution timeout')), 30000)
         );
@@ -70,12 +70,12 @@ const event: Event<"interactionCreate"> = {
           if (!interaction.replied && !interaction.deferred) {
             await interaction.reply({ 
               content: '❌ There was an error while executing this command! Please try again later.', 
-              ephemeral: true 
+              flags: MessageFlags.Ephemeral
             });
           } else {
             await interaction.followUp({ 
               content: '❌ There was an error while executing this command! Please try again later.', 
-              ephemeral: true 
+              flags: MessageFlags.Ephemeral
             });
           }
         } catch (replyError) {

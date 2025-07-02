@@ -143,3 +143,4 @@ GEMINI.md
 mise.toml
 bun.lockb
 *.js
+/src/generated/prisma
