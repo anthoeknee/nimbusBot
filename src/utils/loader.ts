@@ -1,6 +1,10 @@
 // src/utils/loader.ts
-import { readdirSync, statSync } from "fs";
 import { opendir } from "fs/promises";
+import { join } from "path";
+import { Command } from "../types/command";
+import type { Event } from "../types/event";
+import type { Service } from "../types/service";
+import type { ClientEvents } from "discord.js";
 
 // Async generator for walking directories (returns .js/.ts files, skips .d.ts)
 export async function* walk(dir: string): AsyncGenerator<string> {
@@ -17,11 +21,6 @@ export async function* walk(dir: string): AsyncGenerator<string> {
     }
   }
 }
-import { Command } from "../types/command";
-import type { Event } from "../types/event";
-import type { Service } from "../types/service";
-import type { ClientEvents } from "discord.js";
-import { join } from "path";
 
 // Generic module loader
 async function loadModules<T>(dir: string): Promise<T[]> {

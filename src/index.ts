@@ -1,6 +1,7 @@
 import { Client, Collection, GatewayIntentBits } from "discord.js";
 import { config } from "./config";
 import { loadCommands, loadEvents } from "./utils/loader";
+import { db } from "./services/database";
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
 
@@ -31,6 +32,16 @@ async function main() {
     } else {
       client.on(event.name, (...args) => event.execute(...args));
     }
+  }
+
+  // Initialize and synchronize the database
+  try {
+    console.log("Synchronizing database...");
+    await db.sequelize.sync({ alter: true });
+    console.log("Database synchronized successfully.");
+  } catch (error) {
+    console.error("Unable to connect to the database:", error);
+    process.exit(1);
   }
 
   // Login

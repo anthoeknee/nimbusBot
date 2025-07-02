@@ -9,4 +9,7 @@ function getEnvVar(name: string): string {
 export const config = {
   discordToken: getEnvVar("DISCORD_TOKEN"),
   geminiAPIKey: getEnvVar("GEMINI_API_KEY"),
+  database: {
+    url: getEnvVar("DATABASE_URL"),
+  },
 };
