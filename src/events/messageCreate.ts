@@ -1,7 +1,9 @@
-import { Message, Client, ClientEvents } from "discord.js";
+import { Message } from "discord.js";
 import { Event } from "../types/event";
 import { Command } from "../types/command";
 import { logger } from "../utils/logger";
+import { eventErrorHandler, commandErrorHandler } from "../middleware/errorHandler";
+import { permissions } from "../middleware/permissions";
 
 const PREFIX = "gov!";
 
@@ -10,7 +12,7 @@ const executionLocks = new Map<string, Promise<any>>();
 
 const event: Event<"messageCreate"> = {
   name: "messageCreate",
-  async execute(message: Message) {
+  execute: eventErrorHandler(async (message: Message) => {
     // Ignore messages from bots
     if (message.author.bot) return;
 
@@ -52,21 +54,35 @@ const event: Event<"messageCreate"> = {
           return;
         }
 
+        // Add permission check here
+        if (command.meta.permissions) {
+          const requiredPerms = Array.isArray(command.meta.permissions) 
+            ? command.meta.permissions 
+            : [command.meta.permissions];
+          
+          const hasPermission = permissions(requiredPerms)(message, (reason) => {
+            throw new Error(reason);
+          });
+          
+          if (!hasPermission) {
+            return; // Error already thrown above
+          }
+        }
+
         logger.info(`Executing prefix command: ${commandName} from user: ${message.author.tag} (${message.author.id})`);
 
-        // Execute command with timeout protection
-        // @ts-expect-error: Some commands may not have a 'run' method typed, but all should implement it at runtime
-        const commandPromise = command.execute(message, {
-          message,
-          args,
-          client: message.client
-        });
+        // Execute command with enhanced error handling
+        await commandErrorHandler(
+          async (message) => {
+            const commandPromise = command.execute(message, { args });
+            const timeoutPromise = new Promise((_, reject) =>
+              setTimeout(() => reject(new Error('Command execution timeout')), 30000)
+            );
 
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Command execution timeout')), 30000)
-        );
-
-        await Promise.race([commandPromise, timeoutPromise]);
+            await Promise.race([commandPromise, timeoutPromise]);
+          },
+          commandName
+        )(message);
 
         const executionTime = Date.now() - startTime;
         logger.info(`Prefix command ${commandName} completed successfully in ${executionTime}ms`);
@@ -76,12 +92,8 @@ const event: Event<"messageCreate"> = {
         logger.error(`Error executing prefix command for user ${message.author.tag}:`, err);
         logger.error(`Command execution time: ${executionTime}ms`);
 
-        // Send error response
-        try {
-          await message.reply("❌ There was an error executing that command. Please try again later.");
-        } catch (replyError) {
-          logger.error(`Failed to send error response for message ${message.id}:`, replyError);
-        }
+        // The enhanced error handler will handle the user response
+        throw err; // Re-throw to let the event error handler deal with it
       }
     })();
 
@@ -104,7 +116,7 @@ const event: Event<"messageCreate"> = {
         }
       }
     }
-  }
+  }, "messageCreate"),
 };
 
 export default event;

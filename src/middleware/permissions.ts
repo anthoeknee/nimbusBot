@@ -1,4 +1,4 @@
-import { CommandInteraction, Message } from "discord.js";
+import { CommandInteraction, Message, PermissionFlagsBits } from "discord.js";
 
 /**
  * Checks if the user has the required permissions.
@@ -7,19 +7,30 @@ import { CommandInteraction, Message } from "discord.js";
 export function checkPermissions(requiredPerms: string[]) {
   return (interactionOrMessage: CommandInteraction | Message): boolean => {
     const member = interactionOrMessage.member;
-    if (
-      !member ||
-      !("permissions" in member) ||
-      typeof member.permissions !== "object" ||
-      member.permissions === null ||
-      typeof (member.permissions as any).has !== "function"
-    ) {
+    if (!member || !("permissions" in member)) {
       return false;
     }
-    return requiredPerms.every(perm => (member.permissions as any).has(perm));
+
+    // Ensure permissions is a PermissionsBitField
+    const permissions = member.permissions;
+    if (typeof permissions === 'string' || !permissions.has) {
+      return false;
+    }
+
+    // Convert string permissions to PermissionFlagsBits
+    const permissionFlags = requiredPerms.map(perm => {
+      // Handle both string names and PermissionFlagsBits
+      if (typeof perm === 'string') {
+        return PermissionFlagsBits[perm as keyof typeof PermissionFlagsBits];
+      }
+      return perm;
+    }).filter(Boolean);
+
+    return permissionFlags.every(flag => permissions.has(flag));
   };
 }
- /*
+
+/*
  * Middleware to enforce permissions on commands.
  * Usage: permissions(["Administrator"])(interaction) -> boolean
  */

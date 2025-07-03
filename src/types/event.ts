@@ -11,10 +11,13 @@ type MessageEventHandler = EventHandler<any>; // Replace 'any' with your Discord
 // Example: Ready event handler
 type ReadyEventHandler = EventHandler<void>;
 
+export type ModuleType = "single" | "multi" | "auto";
+
 // Event structure for dynamic loading and registration
 export interface Event<T extends keyof ClientEvents> {
     name: T;
     once?: boolean;
+    moduleType?: ModuleType;
     execute: (...args: ClientEvents[T]) => void;
 }
 

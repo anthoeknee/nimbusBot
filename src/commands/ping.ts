@@ -1,6 +1,7 @@
 import { Command } from "../types/command";
-import { ChatInputCommandInteraction, SlashCommandBuilder, Client, EmbedBuilder } from "discord.js";
+import { ChatInputCommandInteraction, SlashCommandBuilder, Client, EmbedBuilder, Message } from "discord.js";
 import { logger } from "../utils/logger";
+import { commandErrorHandler } from "../middleware/errorHandler";
 
 // Use Bun's performance.now() if available, otherwise fallback to Date.now()
 const now = () => (typeof Bun !== "undefined" && Bun?.nanoseconds ? Bun.nanoseconds() / 1e6 : Date.now());
@@ -14,12 +15,14 @@ const command: Command = {
   data: new SlashCommandBuilder()
     .setName("ping")
     .setDescription("Replies with Pong and latency info!") as SlashCommandBuilder,
-  execute: async (interaction: ChatInputCommandInteraction) => {
-    const startTime = Date.now();
+  execute: commandErrorHandler(async (interactionOrMessage: ChatInputCommandInteraction | Message) => {
+    // If it's a slash command
+    if ("isChatInputCommand" in interactionOrMessage && interactionOrMessage.isChatInputCommand()) {
+      const interaction = interactionOrMessage;
+      const startTime = Date.now();
 
-    const userId = interaction.user?.id ?? "unknown";
+      const userId = interaction.user?.id ?? "unknown";
 
-    try {
       logger.info(`Ping command initiated by user ${userId}`);
 
       // Get WebSocket ping - show "N/A" if -1
@@ -68,27 +71,11 @@ const command: Command = {
       const totalTime = Date.now() - startTime;
       logger.debug(`Total ping command execution time: ${totalTime}ms`);
 
-    } catch (error) {
-      logger.error(`Error in ping command for user ${userId}:`, error);
-
-      // Send error response
-      try {
-        if (!interaction.replied && !interaction.deferred) {
-          await interaction.reply({
-            content: "❌ An error occurred while processing the ping command. Please try again later.",
-            ephemeral: true
-          });
-        } else {
-          await interaction.followUp({
-            content: "❌ An error occurred while processing the ping command. Please try again later.",
-            ephemeral: true
-          });
-        }
-      } catch (replyError) {
-        logger.error(`Failed to send error response to user ${userId}:`, replyError);
-      }
+    } else if ("reply" in interactionOrMessage) {
+      // Fallback for prefix/message command
+      await interactionOrMessage.reply("🏓 Pong!");
     }
-  }
+  }, "ping"),
 };
 
 export default command;

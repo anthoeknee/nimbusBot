@@ -1,27 +1,24 @@
-import { Client, ChatInputCommandInteraction, Message, SlashCommandBuilder } from "discord.js";
+import { Client, ChatInputCommandInteraction, Message, SlashCommandBuilder, PermissionFlagsBits } from "discord.js";
 
 // Command metadata interface
 export interface CommandMeta {
   name: string;
   description: string;
+  category?: string;
   usage?: string;
-  aliases?: string[];
+  examples?: string | string[];
+  permissions?: (keyof typeof PermissionFlagsBits)[] | keyof typeof PermissionFlagsBits;
   cooldown?: number;
+  aliases?: string[];
   // Add more metadata fields as needed (e.g., options, permissions)
 }
 
+export type ModuleType = "single" | "multi" | "auto";
 
 export interface Command {
-  meta: {
-    name: string;
-    description: string;
-    category?: string;
-    examples?: string | string[];
-    permissions?: string | string[];
-    cooldown?: number;
-  };
+  meta: CommandMeta;
   data: SlashCommandBuilder;
-  execute: (interaction: ChatInputCommandInteraction) => Promise<void>;
+  execute: (interaction: ChatInputCommandInteraction | Message, context?: { args?: string[] }) => Promise<void>;
 }
 
 // Command context (customize as needed)

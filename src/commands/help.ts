@@ -9,10 +9,30 @@ import {
   Message,
   ComponentType,
   SlashCommandBuilder,
-  MessageFlags
+  MessageFlags,
+  StringSelectMenuInteraction,
+  ButtonInteraction,
+  InteractionResponse,
+  APIApplicationCommandOption,
+  Collection,
+  Client,
+  GatewayIntentBits
 } from "discord.js";
 import { Command } from "../types/command";
-import { client } from "../index"; // Adjust path to your main client file
+import { commandErrorHandler } from "../middleware/errorHandler";
+
+const COMMANDS_PER_PAGE = 5;
+
+// Define ExtendedClient interface
+interface ExtendedClient extends Client {
+  commands: Collection<string, Command>;
+}
+
+// Create client instance with required intents
+export const client = new Client({ 
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages] 
+}) as ExtendedClient;
+client.commands = new Collection();
 
 const command: Command = {
   meta: {
@@ -24,45 +44,124 @@ const command: Command = {
     .setName("help")
     .setDescription("Get help with bot commands")
     .addStringOption(option =>
-      option
-        .setName("command")
-        .setDescription("Get detailed help for a specific command")
-        .setRequired(false)
+      option.setName("command").setDescription("Get detailed help for a specific command").setRequired(false)
     ) as SlashCommandBuilder,
-  
-  execute: async (interactionOrMessage: ChatInputCommandInteraction | Message, context?: { args?: string[] }) => {
-    // If called as a slash command
-    if ("options" in interactionOrMessage) {
-      const specificCommand = interactionOrMessage.options.getString("command");
-      if (specificCommand) {
-        await sendSpecificCommandHelp(interactionOrMessage, specificCommand);
-      } else {
-        await sendGeneralHelp(interactionOrMessage);
+
+  execute: commandErrorHandler(async (interaction: ChatInputCommandInteraction | Message, context?: { args?: string[] }) => {
+    // Handle specific command help if requested
+    if (interaction instanceof ChatInputCommandInteraction) {
+      const commandName = interaction.options.getString("command");
+      if (commandName) {
+        await sendSpecificCommandHelp(interaction, commandName);
+        return;
       }
+    } else if (context?.args && context.args.length > 0) {
+      await sendSpecificCommandHelp(interaction, context.args[0]);
       return;
     }
 
-    // If called as a prefix (message) command
-    const args = context?.args || [];
-    const specificCommand = args[0];
-    if (specificCommand) {
-      await sendSpecificCommandHelp(interactionOrMessage, specificCommand);
-    } else {
-      await sendGeneralHelp(interactionOrMessage);
-    }
-  }
+    // Show general help
+    await sendGeneralHelp(interaction);
+  }, "help"),
 };
 
-// Get commands organized by category
-function getCommandsByCategory() {
-  const categories: { [key: string]: Command[] } = {};
+async function showCategoryPage(
+  interaction: StringSelectMenuInteraction | ButtonInteraction, 
+  commands: Command[], 
+  category: string, 
+  page: number
+) {
+  const totalPages = Math.ceil(commands.length / COMMANDS_PER_PAGE);
+  const start = page * COMMANDS_PER_PAGE;
+  const end = start + COMMANDS_PER_PAGE;
+  const pageCommands = commands.slice(start, end);
 
-  // Get all commands from the client's commands Map
-  (client as any).commands?.forEach((cmd: Command) => {
-    const category = cmd.meta?.category || "General";
-    if (!categories[category]) categories[category] = [];
-    categories[category].push(cmd);
+  const embed = new EmbedBuilder()
+    .setTitle(`${getCategoryEmoji(category)} ${category} Commands`)
+    .setDescription(pageCommands.map((cmd, i) =>
+      `**${start + i + 1}.** \`/${cmd.meta.name}\` - ${cmd.meta.description}`
+    ).join('\n') || "No commands in this category.")
+    .setFooter({ text: `Page ${page + 1} of ${totalPages}` })
+    .setColor(0x5865F2);
+
+  // Create navigation buttons - limit to 5 components per row
+  const navButtons = [
+    new ButtonBuilder().setCustomId("prev_page").setLabel("⬅️ Prev").setStyle(ButtonStyle.Secondary).setDisabled(page === 0),
+    new ButtonBuilder().setCustomId("next_page").setLabel("Next ➡️").setStyle(ButtonStyle.Secondary).setDisabled(page === totalPages - 1),
+  ];
+
+  // Add detail buttons for each command (max 3 to stay within component limit)
+  const detailButtons = pageCommands.slice(0, 3).map((cmd, i) =>
+    new ButtonBuilder()
+      .setCustomId(`details_${start + i}`)
+      .setLabel(`${cmd.meta.name}`)
+      .setStyle(ButtonStyle.Primary)
+  );
+
+  const navRow = new ActionRowBuilder<ButtonBuilder>().addComponents(...navButtons, ...detailButtons);
+
+  await interaction.update({
+    embeds: [embed],
+    components: [navRow]
   });
+
+  // Button collector for navigation/details
+  const buttonCollector = interaction.message.createMessageComponentCollector({
+    componentType: ComponentType.Button,
+    time: 300_000
+  });
+
+  buttonCollector.on('collect', async (btnInteraction: ButtonInteraction) => {
+    if (btnInteraction.customId === "prev_page") {
+      await showCategoryPage(btnInteraction, commands, category, page - 1);
+    } else if (btnInteraction.customId === "next_page") {
+      await showCategoryPage(btnInteraction, commands, category, page + 1);
+    } else if (btnInteraction.customId.startsWith("details_")) {
+      const idx = parseInt(btnInteraction.customId.split("_")[1], 10);
+      const cmd = pageCommands[idx - start];
+      if (cmd) {
+        const detailsEmbed = new EmbedBuilder()
+          .setTitle(`📖 /${cmd.meta.name}`)
+          .setDescription(formatCommandDetails(cmd))
+          .setColor(0x5865F2);
+        await btnInteraction.update({
+          embeds: [detailsEmbed],
+          components: [
+            new ActionRowBuilder<ButtonBuilder>().addComponents(
+              new ButtonBuilder().setCustomId("back_to_list").setLabel("← Back").setStyle(ButtonStyle.Secondary)
+            )
+          ]
+        });
+
+        // Back button collector
+        const backCollector = btnInteraction.message.createMessageComponentCollector({
+          componentType: ComponentType.Button,
+          time: 300_000
+        });
+        backCollector.on('collect', async (backBtn: ButtonInteraction) => {
+          if (backBtn.customId === "back_to_list") {
+            await showCategoryPage(backBtn, commands, category, page);
+            backCollector.stop();
+          }
+        });
+      }
+    }
+  });
+}
+
+// Get commands organized by category
+function getCommandsByCategory(): { [key: string]: Command[] } {
+  const categories: { [key: string]: Command[] } = {};
+  const botClient = client as ExtendedClient;
+
+  // Get all commands from the client's commands Collection
+  if (botClient.commands) {
+    botClient.commands.forEach((cmd: Command) => {
+      const category = cmd.meta?.category || "General";
+      if (!categories[category]) categories[category] = [];
+      categories[category].push(cmd);
+    });
+  }
 
   return categories;
 }
@@ -73,11 +172,11 @@ async function sendGeneralHelp(target: ChatInputCommandInteraction | Message) {
   const categoryNames = Object.keys(categories);
 
   if (categoryNames.length === 0) {
-    if ("reply" in target && typeof target.reply === "function") {
-      await target.reply({
-        content: "❌ No commands found!",
-        ephemeral: true
-      });
+    const errorMessage = "❌ No commands found!";
+    if (target instanceof ChatInputCommandInteraction) {
+      await target.reply({ content: errorMessage, ephemeral: true });
+    } else {
+      await target.reply(errorMessage);
     }
     return;
   }
@@ -95,9 +194,10 @@ async function sendGeneralHelp(target: ChatInputCommandInteraction | Message) {
       }))
     )
     .setFooter({ 
-      text: `Total: ${(client as any).commands?.size || 0} commands` 
+      text: `Total: ${(client as ExtendedClient).commands?.size || 0} commands` 
     })
     .setTimestamp();
+
   if (categoryNames.length <= 5) {
     // Show all commands in a simple format
     const allCommandsEmbed = new EmbedBuilder()
@@ -122,11 +222,13 @@ async function sendGeneralHelp(target: ChatInputCommandInteraction | Message) {
       });
     });
 
-    if ("reply" in target && typeof target.reply === "function") {
+    if (target instanceof ChatInputCommandInteraction) {
       await target.reply({
         embeds: [allCommandsEmbed],
         ephemeral: true
       });
+    } else {
+      await target.reply({ embeds: [allCommandsEmbed] });
     }
     return;
   }
@@ -147,11 +249,20 @@ async function sendGeneralHelp(target: ChatInputCommandInteraction | Message) {
   const selectRow = new ActionRowBuilder<StringSelectMenuBuilder>()
     .addComponents(selectMenu);
 
-  const response = await target.reply({
-    embeds: [mainEmbed],
-    components: [selectRow],
-    ephemeral: true
-  });
+  let response: Message;
+  if (target instanceof ChatInputCommandInteraction) {
+    const interactionResponse = await target.reply({
+      embeds: [mainEmbed],
+      components: [selectRow],
+      ephemeral: true
+    });
+    response = await interactionResponse.fetch();
+  } else {
+    response = await target.reply({
+      embeds: [mainEmbed],
+      components: [selectRow]
+    });
+  }
 
   // Handle category selection
   const collector = response.createMessageComponentCollector({
@@ -159,10 +270,10 @@ async function sendGeneralHelp(target: ChatInputCommandInteraction | Message) {
     time: 300000 // 5 minutes
   });
 
-  collector.on('collect', async (selectInteraction) => {
-    // Fix: Check if target is a ChatInputCommandInteraction (has .user), otherwise fallback to .author (for Message)
-    const targetUserId = 'user' in target ? target.user.id : ('author' in target ? target.author.id : null);
-    if (selectInteraction.user.id !== targetUserId) {
+  collector.on('collect', async (selectInteraction: StringSelectMenuInteraction) => {
+    // Check if the user who triggered the original interaction is the same
+    const originalUserId = target instanceof ChatInputCommandInteraction ? target.user.id : target.author.id;
+    if (selectInteraction.user.id !== originalUserId) {
       await selectInteraction.reply({
         content: "❌ This help menu is not for you!",
         ephemeral: true
@@ -209,7 +320,7 @@ async function sendGeneralHelp(target: ChatInputCommandInteraction | Message) {
       time: 300000
     });
 
-    buttonCollector.on('collect', async (buttonInteraction) => {
+    buttonCollector.on('collect', async (buttonInteraction: ButtonInteraction) => {
       if (buttonInteraction.customId === 'help_back') {
         await buttonInteraction.update({
           embeds: [mainEmbed],
@@ -230,22 +341,19 @@ async function sendGeneralHelp(target: ChatInputCommandInteraction | Message) {
   });
 }
 
-// Send help for a specific command
-import { APIApplicationCommandOption } from "discord.js";
-
 // Helper to get the commands map from the client, with proper typing
-function getCommandsMap(): Map<string, Command> {
-  // @ts-ignore
-  return (client as any).commands as Map<string, Command>;
+function getCommandsCollection() {
+  const botClient = client as ExtendedClient;
+  return botClient.commands;
 }
 
 async function sendSpecificCommandHelp(target: ChatInputCommandInteraction | Message, commandName: string) {
-  const commandsMap = getCommandsMap();
-  const command = commandsMap?.get(commandName);
+  const commandsCollection = getCommandsCollection();
+  const command = commandsCollection?.get(commandName);
 
   if (!command) {
     // Try to find command with similar name
-    const similarCommands = Array.from(commandsMap?.values() || [])
+    const similarCommands = Array.from(commandsCollection?.values() || [])
       .filter((cmd: Command) =>
         cmd.meta.name.toLowerCase().includes(commandName.toLowerCase()) ||
         commandName.toLowerCase().includes(cmd.meta.name.toLowerCase())
@@ -266,20 +374,25 @@ async function sendSpecificCommandHelp(target: ChatInputCommandInteraction | Mes
         })
         .setTimestamp();
 
-      if ("reply" in target && typeof target.reply === "function") {
+      if (target instanceof ChatInputCommandInteraction) {
         await target.reply({
           embeds: [embed],
           ephemeral: true
         });
+      } else {
+        await target.reply({ embeds: [embed] });
       }
       return;
     }
 
-    if ("reply" in target && typeof target.reply === "function") {
+    const notFoundMessage = `❌ Command \`${commandName}\` not found! Use \`/help\` to see all available commands.`;
+    if (target instanceof ChatInputCommandInteraction) {
       await target.reply({
-        content: `❌ Command \`${commandName}\` not found! Use \`/help\` to see all available commands.`,
+        content: notFoundMessage,
         ephemeral: true
       });
+    } else {
+      await target.reply(notFoundMessage);
     }
     return;
   }
@@ -307,23 +420,22 @@ async function sendSpecificCommandHelp(target: ChatInputCommandInteraction | Mes
     .setTimestamp();
 
   // Add slash command options if they exist
-  // The .options property is not public API, so we use type assertion and fallback
-  // to [] if not present
-  const options: APIApplicationCommandOption[] =
-    // @ts-ignore
-    (command.data.options as APIApplicationCommandOption[]) || [];
+  const slashCommand = command.data as SlashCommandBuilder;
+  if (slashCommand && 'options' in slashCommand) {
+    const options = (slashCommand as any).options as APIApplicationCommandOption[] | undefined;
+    
+    if (options && options.length > 0) {
+      const optionsText = options.map((option) => {
+        const required = option.required ? '(Required)' : '(Optional)';
+        return `\`${option.name}\` - ${option.description ?? "No description"} ${required}`;
+      }).join('\n');
 
-  if (options.length > 0) {
-    const optionsText = options.map((option) => {
-      const required = option.required ? '(Required)' : '(Optional)';
-      return `\`${option.name}\` - ${option.description ?? "No description"} ${required}`;
-    }).join('\n');
-
-    embed.addFields({
-      name: "Options",
-      value: optionsText,
-      inline: false
-    });
+      embed.addFields({
+        name: "Options",
+        value: optionsText,
+        inline: false
+      });
+    }
   }
 
   // Add additional info if available
@@ -347,11 +459,13 @@ async function sendSpecificCommandHelp(target: ChatInputCommandInteraction | Mes
     });
   }
 
-  if ("reply" in target && typeof target.reply === "function") {
+  if (target instanceof ChatInputCommandInteraction) {
     await target.reply({
       embeds: [embed],
-      ephemeral: "ephemeral" in target ? true : false
+      ephemeral: true
     });
+  } else {
+    await target.reply({ embeds: [embed] });
   }
 }
 
@@ -371,6 +485,19 @@ function getCategoryEmoji(category: string): string {
   };
 
   return emojiMap[category] || '📁';
+}
+
+function formatCommandDetails(cmd: Command): string {
+  let details = `**Description:** ${cmd.meta.description}\n`;
+  if (cmd.meta.usage) details += `**Usage:** \`${cmd.meta.usage}\`\n`;
+  if (cmd.meta.aliases) details += `**Aliases:** ${cmd.meta.aliases.map(a => `\`${a}\``).join(', ')}\n`;
+  if (cmd.meta.examples) {
+    const ex = Array.isArray(cmd.meta.examples) ? cmd.meta.examples : [cmd.meta.examples];
+    details += `**Examples:**\n${ex.map(e => `\`${e}\``).join('\n')}\n`;
+  }
+  if (cmd.meta.permissions) details += `**Permissions:** ${Array.isArray(cmd.meta.permissions) ? cmd.meta.permissions.join(', ') : cmd.meta.permissions}\n`;
+  if (cmd.meta.cooldown) details += `**Cooldown:** ${cmd.meta.cooldown}s\n`;
+  return details;
 }
 
 export default command;
