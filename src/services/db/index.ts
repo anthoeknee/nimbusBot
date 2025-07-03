@@ -1,4 +1,5 @@
 import { UserRepository, GuildRepository, SettingRepository, MemoryRepository } from './repositories';
+import { initializeDatabase } from './client';
 
 export class DatabaseService {
   public readonly users: UserRepository;
@@ -13,7 +14,12 @@ export class DatabaseService {
     this.memories = new MemoryRepository();
   }
 
-  // Legacy compatibility methods (optional - you can remove these if you want to fully migrate)
+  // Initialize database on first use
+  initialize(): void {
+    initializeDatabase();
+  }
+
+  // Legacy compatibility methods
   get db() {
     return {
       // User methods

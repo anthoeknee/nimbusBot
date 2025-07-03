@@ -58,6 +58,9 @@ async function main() {
       console.log("Database connection successful.");
     }, "database")();
 
+    // Initialize database
+    database.initialize();
+
     // Login
     await client.login(config.discordToken);
   } catch (error) {

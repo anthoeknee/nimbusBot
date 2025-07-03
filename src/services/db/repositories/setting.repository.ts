@@ -1,52 +1,86 @@
-import { Setting, Prisma } from '@prisma/client';
 import { BaseRepository } from './base.repository';
-import { EntityId } from '../types';
+import { 
+  SettingRow, 
+  CreateSettingInput, 
+  UpdateSettingInput, 
+  EntityId 
+} from '../types';
+import { safeJsonParse, safeJsonStringify } from '../client';
 
-export class SettingRepository extends BaseRepository<Setting, Prisma.SettingCreateInput, Prisma.SettingUpdateInput> {
-  protected readonly modelName = Prisma.ModelName.Setting;
+export class SettingRepository extends BaseRepository<SettingRow, CreateSettingInput, UpdateSettingInput> {
+  protected readonly tableName = 'settings';
 
-  async findByUser(userId: EntityId): Promise<Setting[]> {
+  async findByUser(userId: EntityId): Promise<SettingRow[]> {
     return await this.findMany({ userId });
   }
 
-  async findByGuild(guildId: EntityId): Promise<Setting[]> {
+  async findByGuild(guildId: EntityId): Promise<SettingRow[]> {
     return await this.findMany({ guildId });
   }
 
-  async findByKey(key: string, userId?: EntityId, guildId?: EntityId): Promise<Setting | null> {
-    const where: any = { key };
-    if (userId) where.userId = userId;
-    if (guildId) where.guildId = guildId;
-
+  async findByKey(key: string, userId?: EntityId, guildId?: EntityId): Promise<SettingRow | null> {
     try {
-      return await this.model.findFirst({ where });
+      let query = 'SELECT * FROM settings WHERE key = ?';
+      const params: any[] = [key];
+
+      if (userId) {
+        query += ' AND userId = ?';
+        params.push(userId);
+      } else if (guildId) {
+        query += ' AND guildId = ?';
+        params.push(guildId);
+      }
+
+      const stmt = this.db.prepare(query);
+      const result = stmt.get(...params) as SettingRow | undefined;
+      return result || null;
     } catch (error) {
       throw new Error(`Failed to find setting by key: ${error}`);
     }
   }
 
-  async setSetting(key: string, value: string, userId?: EntityId, guildId?: EntityId): Promise<Setting> {
-    const where: any = { key };
-    if (userId) where.userId = userId;
-    if (guildId) where.guildId = guildId;
-
-    return await this.upsert(
-      where,
-      {
+  async setSetting(
+    key: string, 
+    value: any, 
+    userId?: EntityId, 
+    guildId?: EntityId
+  ): Promise<SettingRow> {
+    const existingSetting = await this.findByKey(key, userId, guildId);
+    
+    if (existingSetting) {
+      return await this.update(existingSetting.id, { value: safeJsonStringify(value) });
+    } else {
+      const createData: CreateSettingInput = {
+        targetType: userId ? 'user' : 'guild',
+        userId,
+        guildId,
         key,
-        value,
-        ...(userId && { user: { connect: { id: userId } } }),
-        ...(guildId && { guild: { connect: { id: guildId } } }),
-        targetType: ''
-      },
-      { value }
-    );
+        value: safeJsonStringify(value),
+      };
+      return await this.create(createData);
+    }
   }
 
-  async deleteBySetting(key: string, userId?: EntityId, guildId?: EntityId): Promise<Setting | null> {
+  async deleteBySetting(
+    key: string, 
+    userId?: EntityId, 
+    guildId?: EntityId
+  ): Promise<SettingRow | null> {
     const setting = await this.findByKey(key, userId, guildId);
     if (!setting) return null;
 
     return await this.delete(setting.id);
+  }
+
+  // Helper method to get parsed value
+  async getSettingValue<T = any>(
+    key: string, 
+    userId?: EntityId, 
+    guildId?: EntityId
+  ): Promise<T | null> {
+    const setting = await this.findByKey(key, userId, guildId);
+    if (!setting) return null;
+    
+    return safeJsonParse<T>(setting.value);
   }
 }

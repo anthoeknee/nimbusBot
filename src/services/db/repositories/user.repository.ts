@@ -1,35 +1,52 @@
-import { User, Prisma } from '@prisma/client';
 import { BaseRepository } from './base.repository';
-import { DiscordId } from '../types';
+import { 
+  UserRow, 
+  CreateUserInput, 
+  UpdateUserInput, 
+  DiscordId, 
+  EntityId 
+} from '../types';
 
-export class UserRepository extends BaseRepository<User, Prisma.UserCreateInput, Prisma.UserUpdateInput> {
-  protected readonly modelName = Prisma.ModelName.User;
+export class UserRepository extends BaseRepository<UserRow, CreateUserInput, UpdateUserInput> {
+  protected readonly tableName = 'users';
 
-  async findByDiscordId(discordId: DiscordId): Promise<User | null> {
+  async findByDiscordId(discordId: DiscordId): Promise<UserRow | null> {
     try {
-      return await this.model.findUnique({ where: { discordId } });
+      const stmt = this.db.prepare('SELECT * FROM users WHERE discordId = ?');
+      const result = stmt.get(discordId) as UserRow | undefined;
+      return result || null;
     } catch (error) {
       throw new Error(`Failed to find user by Discord ID: ${error}`);
     }
   }
 
-  async findOrCreateByDiscordId(discordId: DiscordId, userData?: Partial<Prisma.UserCreateInput>): Promise<User> {
+  async findOrCreateByDiscordId(
+    discordId: DiscordId, 
+    userData?: Partial<CreateUserInput>
+  ): Promise<UserRow> {
     const existingUser = await this.findByDiscordId(discordId);
     if (existingUser) return existingUser;
 
-    return await this.create({
+    const createData: CreateUserInput = {
       discordId,
-      ...Object.fromEntries(
-        Object.entries(userData ?? {}).filter(([_, v]) => v !== undefined)
-      ),
-      username: '',
-      displayName: ''
-    });
+      username: userData?.username ?? '',
+      displayName: userData?.displayName ?? '',
+    };
+
+    return await this.create(createData);
   }
 
-  async updateByDiscordId(discordId: DiscordId, data: Prisma.UserUpdateInput): Promise<User> {
+  async updateByDiscordId(discordId: DiscordId, data: UpdateUserInput): Promise<UserRow> {
     try {
-      return await this.model.update({ where: { discordId }, data });
+      const keys = Object.keys(data as object);
+      const values = Object.values(data as object);
+      const setClause = keys.map(key => `${key} = ?`).join(', ');
+      
+      const query = `UPDATE users SET ${setClause} WHERE discordId = ? RETURNING *`;
+      const stmt = this.db.prepare(query);
+      const result = stmt.get(...values, discordId) as UserRow;
+      
+      return result;
     } catch (error) {
       throw new Error(`Failed to update user by Discord ID: ${error}`);
     }

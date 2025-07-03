@@ -14,6 +14,94 @@ export interface SimilarityResult<T> {
   similarity: number;
 }
 
+// Database row types
+export interface UserRow {
+  id: EntityId;
+  discordId: DiscordId;
+  username: string;
+  displayName: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GuildRow {
+  id: EntityId;
+  discordGuildId: DiscordId;
+  name: string;
+  iconUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SettingRow {
+  id: EntityId;
+  targetType: string;
+  userId: EntityId | null;
+  guildId: EntityId | null;
+  key: string;
+  value: string; // JSON string
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MemoryRow {
+  id: EntityId;
+  userId: EntityId | null;
+  guildId: EntityId | null;
+  content: string;
+  embedding: string; // JSON array string
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Input types for create operations
+export interface CreateUserInput {
+  discordId: DiscordId;
+  username: string;
+  displayName: string;
+}
+
+export interface CreateGuildInput {
+  discordGuildId: DiscordId;
+  name: string;
+  iconUrl?: string;
+}
+
+export interface CreateSettingInput {
+  targetType: string;
+  userId?: EntityId;
+  guildId?: EntityId;
+  key: string;
+  value: any;
+}
+
+export interface CreateMemoryInput {
+  userId?: EntityId;
+  guildId?: EntityId;
+  content: string;
+  embedding: number[];
+}
+
+// Input types for update operations
+export interface UpdateUserInput {
+  username?: string;
+  displayName?: string;
+}
+
+export interface UpdateGuildInput {
+  name?: string;
+  iconUrl?: string;
+}
+
+export interface UpdateSettingInput {
+  value?: any;
+}
+
+export interface UpdateMemoryInput {
+  content?: string;
+  embedding?: number[];
+}
+
 export type CreateInput<T> = T extends 'user' ? Prisma.UserCreateInput
   : T extends 'guild' ? Prisma.GuildCreateInput
   : T extends 'setting' ? Prisma.SettingCreateInput
