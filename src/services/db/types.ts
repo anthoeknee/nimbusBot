@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { Prisma } from "@prisma/client";
 
 export type EntityId = number;
 export type DiscordId = string;
@@ -54,6 +54,18 @@ export interface MemoryRow {
   updatedAt: string;
 }
 
+// Verification config for guild verification feature
+export interface VerificationConfig {
+  enabled: boolean;
+  channelId: string;
+  messageId?: string;
+  acceptEmoji: string;
+  rejectEmoji: string;
+  roleId: string;
+  kickOnReject?: boolean;
+  lastUpdated?: string;
+}
+
 // Input types for create operations
 export interface CreateUserInput {
   discordId: DiscordId;
@@ -102,14 +114,22 @@ export interface UpdateMemoryInput {
   embedding?: number[];
 }
 
-export type CreateInput<T> = T extends 'user' ? Prisma.UserCreateInput
-  : T extends 'guild' ? Prisma.GuildCreateInput
-  : T extends 'setting' ? Prisma.SettingCreateInput
-  : T extends 'memory' ? Prisma.MemoryCreateInput
+export type CreateInput<T> = T extends "user"
+  ? Prisma.UserCreateInput
+  : T extends "guild"
+  ? Prisma.GuildCreateInput
+  : T extends "setting"
+  ? Prisma.SettingCreateInput
+  : T extends "memory"
+  ? Prisma.MemoryCreateInput
   : never;
 
-export type UpdateInput<T> = T extends 'user' ? Prisma.UserUpdateInput
-  : T extends 'guild' ? Prisma.GuildUpdateInput
-  : T extends 'setting' ? Prisma.SettingUpdateInput
-  : T extends 'memory' ? Prisma.MemoryUpdateInput
+export type UpdateInput<T> = T extends "user"
+  ? Prisma.UserUpdateInput
+  : T extends "guild"
+  ? Prisma.GuildUpdateInput
+  : T extends "setting"
+  ? Prisma.SettingUpdateInput
+  : T extends "memory"
+  ? Prisma.MemoryUpdateInput
   : never;

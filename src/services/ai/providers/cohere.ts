@@ -31,19 +31,59 @@ function getHeaders() {
 
 export class CohereProvider implements AIProviderInterface {
   async chat(request: AIChatRequest): Promise<AIChatResponse> {
+    const body: any = {
+      model: request.model,
+      messages: request.messages,
+      temperature: request.temperature,
+      stream: request.stream,
+    };
+    if (request.tools) body.tools = request.tools;
+    if (request.tool_choice) body.tool_choice = request.tool_choice;
+
     const res = await fetch("https://api.cohere.com/v2/chat", {
       method: "POST",
       headers: getHeaders(),
-      body: JSON.stringify({
-        model: request.model,
-        messages: request.messages,
-        temperature: request.temperature,
-        stream: request.stream,
-        // Add other fields as needed (tools, documents, etc.)
-      }),
+      body: JSON.stringify(body),
     });
     if (!res.ok) throw new Error(`Cohere chat error: ${res.statusText}`);
-    return res.json();
+    const data = await res.json();
+
+    // Map Cohere's response to universal format
+    // Cohere's response: { message: { content, tool_calls, ... }, ... }
+    const message = data.message || {};
+    let tool_calls = undefined;
+    if (Array.isArray(message.tool_calls)) {
+      tool_calls = message.tool_calls.map((tc: any) => ({
+        id: tc.id,
+        type: tc.type,
+        function: {
+          name: tc.function?.name,
+          arguments:
+            typeof tc.function?.arguments === "string"
+              ? tc.function.arguments
+              : JSON.stringify(tc.function?.arguments || {}),
+        },
+      }));
+    }
+    return {
+      id: data.id || "",
+      object: "chat.completion",
+      created: Math.floor(Date.now() / 1000),
+      model: request.model,
+      choices: [
+        {
+          index: 0,
+          message: {
+            role: "assistant",
+            content: message.content || "",
+            ...(tool_calls ? { tool_calls } : {}),
+          },
+          finish_reason: message.finish_reason || "stop",
+        },
+      ],
+      usage: data.usage,
+      raw: data,
+    };
   }
 
   async embed(request: AIEmbedRequest): Promise<AIEmbedResponse> {
@@ -112,11 +152,15 @@ export class CohereProvider implements AIProviderInterface {
     };
   }
 
-  async speechToText(request: AISpeechToTextRequest): Promise<AISpeechToTextResponse> {
+  async speechToText(
+    request: AISpeechToTextRequest
+  ): Promise<AISpeechToTextResponse> {
     throw new Error("Cohere speech-to-text not implemented");
   }
 
-  async textToSpeech(request: AITextToSpeechRequest): Promise<AITextToSpeechResponse> {
+  async textToSpeech(
+    request: AITextToSpeechRequest
+  ): Promise<AITextToSpeechResponse> {
     throw new Error("Cohere text-to-speech not implemented");
   }
 

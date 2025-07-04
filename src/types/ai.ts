@@ -3,12 +3,15 @@ export type AIProvider = "groq" | "cohere" | "gemini";
 export type GroqModel =
   | "meta-llama/llama-4-maverick-17b-128e-instruct"
   | "meta-llama/llama-4-scout-17b-16e-instruct"
-  | "llama-3.3-70b-versatile"
+  | "llama-3.3-70b-versatile";
 
 // Common Message Format for Chat
 export interface AIChatMessage {
-  role: "system" | "user" | "assistant";
+  role: "system" | "user" | "assistant" | "tool";
   content: string;
+  name?: string;
+  tool_calls?: AIToolCall[];
+  tool_call_id?: string;
 }
 
 // Chat/Completion Request
@@ -19,6 +22,8 @@ export interface AIChatRequest {
   temperature?: number;
   maxTokens?: number;
   stream?: boolean;
+  tools?: AIToolDefinition[];
+  tool_choice?: string | { type: "function"; function: { name: string } };
 }
 
 // Chat/Completion Response
@@ -144,8 +149,12 @@ export interface AIClassifyResponse {
 export interface AIProviderInterface {
   embeddings: any;
   chat(request: AIChatRequest): Promise<AIChatResponse>;
-  speechToText?(request: AISpeechToTextRequest): Promise<AISpeechToTextResponse>;
-  textToSpeech?(request: AITextToSpeechRequest): Promise<AITextToSpeechResponse>;
+  speechToText?(
+    request: AISpeechToTextRequest
+  ): Promise<AISpeechToTextResponse>;
+  textToSpeech?(
+    request: AITextToSpeechRequest
+  ): Promise<AITextToSpeechResponse>;
   vision?(request: AIVisionRequest): Promise<AIVisionResponse>;
   reasoning?(request: AIReasoningRequest): Promise<AIReasoningResponse>;
   rerank?(request: AIRerankRequest): Promise<AIRerankResponse>;
@@ -163,4 +172,24 @@ export interface AIEmbedRequest {
 export interface AIEmbedResponse {
   embeddings: number[][];
   // ...other fields returned by Cohere if needed
+}
+
+// Tool/function definition (OpenAI-compatible)
+export interface AIToolDefinition {
+  type: "function";
+  function: {
+    name: string;
+    description?: string;
+    parameters: Record<string, any>; // JSON Schema
+  };
+}
+
+// Tool call in a message
+export interface AIToolCall {
+  id: string;
+  type: "function";
+  function: {
+    name: string;
+    arguments: string; // JSON string
+  };
 }

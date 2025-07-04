@@ -25,27 +25,36 @@ function getHeaders(isJson = true) {
 
 export class GroqProvider implements AIProviderInterface {
   async chat(request: AIChatRequest): Promise<AIChatResponse> {
+    const body: any = {
+      model: request.model,
+      messages: request.messages,
+      temperature: request.temperature,
+      max_tokens: request.maxTokens,
+      stream: request.stream,
+    };
+    if (request.tools) body.tools = request.tools;
+    if (request.tool_choice) body.tool_choice = request.tool_choice;
+
     const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: getHeaders(),
-      body: JSON.stringify({
-        model: request.model,
-        messages: request.messages,
-        temperature: request.temperature,
-        max_tokens: request.maxTokens,
-        stream: request.stream,
-      }),
+      body: JSON.stringify(body),
     });
     if (!res.ok) throw new Error(`Groq chat error: ${res.statusText}`);
     return res.json();
   }
 
-  async speechToText(request: AISpeechToTextRequest): Promise<AISpeechToTextResponse> {
+  async speechToText(
+    request: AISpeechToTextRequest
+  ): Promise<AISpeechToTextResponse> {
     const form = new FormData();
     let audioData: BlobPart;
     if (request.audio instanceof Blob) {
       audioData = request.audio;
-    } else if (typeof Buffer !== "undefined" && request.audio instanceof Buffer) {
+    } else if (
+      typeof Buffer !== "undefined" &&
+      request.audio instanceof Buffer
+    ) {
       // Convert Buffer to new Uint8Array with ArrayBuffer backing
       audioData = new Uint8Array(request.audio);
     } else if (request.audio instanceof Uint8Array) {
@@ -60,17 +69,23 @@ export class GroqProvider implements AIProviderInterface {
     if (request.model) form.append("model", request.model);
     if (request.language) form.append("language", request.language);
 
-    const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${GROQ_API_KEY}` }, // Don't set Content-Type for FormData
-      body: form,
-    });
-    if (!res.ok) throw new Error(`Groq speech-to-text error: ${res.statusText}`);
+    const res = await fetch(
+      "https://api.groq.com/openai/v1/audio/transcriptions",
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${GROQ_API_KEY}` }, // Don't set Content-Type for FormData
+        body: form,
+      }
+    );
+    if (!res.ok)
+      throw new Error(`Groq speech-to-text error: ${res.statusText}`);
     const data = await res.json();
     return { text: data.text, language: data.language, raw: data };
   }
 
-  async textToSpeech(request: AITextToSpeechRequest): Promise<AITextToSpeechResponse> {
+  async textToSpeech(
+    request: AITextToSpeechRequest
+  ): Promise<AITextToSpeechResponse> {
     // Groq does not currently support TTS (as of docs provided)
     throw new Error("Groq text-to-speech not implemented");
   }

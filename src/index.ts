@@ -1,4 +1,12 @@
-import { Client, Collection, GatewayIntentBits, ChatInputCommandInteraction, Message, MessageFlags } from "discord.js";
+import {
+  Client,
+  Collection,
+  GatewayIntentBits,
+  ChatInputCommandInteraction,
+  Message,
+  MessageFlags,
+  Partials,
+} from "discord.js";
 import { config } from "./config";
 import { loadCommands, loadEvents } from "./utils/loader";
 import { database } from "./services/db";
@@ -8,14 +16,22 @@ import { serviceErrorHandler } from "./middleware/errorHandler";
 export interface ExtendedClient extends Client {
   commands: Collection<string, Command>;
 }
-// testing 
+// testing
 export const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
-    // ...add any other intents you need
-  ]
+    GatewayIntentBits.GuildMessageReactions,
+    GatewayIntentBits.GuildMembers,
+  ],
+  partials: [
+    Partials.Message,
+    Partials.Reaction,
+    Partials.User,
+    Partials.Channel,
+    Partials.GuildMember,
+  ],
 }) as ExtendedClient;
 
 client.commands = new Collection();
@@ -28,20 +44,28 @@ async function syncCommandsOnStartup() {
   }
 
   // Split commands into global and guild-only
-  const globalCommands = Array.from(commands.values()).filter(cmd => !cmd.meta.guildOnly);
-  const guildCommands = Array.from(commands.values()).filter(cmd => cmd.meta.guildOnly);
+  const globalCommands = Array.from(commands.values()).filter(
+    (cmd) => !cmd.meta.guildOnly
+  );
+  const guildCommands = Array.from(commands.values()).filter(
+    (cmd) => cmd.meta.guildOnly
+  );
 
   // Register global commands
   if (globalCommands.length > 0) {
-    await client.application?.commands.set(globalCommands.map(cmd => cmd.data.toJSON()));
+    await client.application?.commands.set(
+      globalCommands.map((cmd) => cmd.data.toJSON())
+    );
     console.log(`Synced ${globalCommands.length} global commands.`);
   }
 
   // Register guild-only commands for each guild
   if (guildCommands.length > 0) {
     for (const guild of client.guilds.cache.values()) {
-      await guild.commands.set(guildCommands.map(cmd => cmd.data.toJSON()));
-      console.log(`Synced ${guildCommands.length} guild-only commands for guild ${guild.name} (${guild.id})`);
+      await guild.commands.set(guildCommands.map((cmd) => cmd.data.toJSON()));
+      console.log(
+        `Synced ${guildCommands.length} guild-only commands for guild ${guild.name} (${guild.id})`
+      );
     }
   }
 }
@@ -70,9 +94,15 @@ async function main() {
     // Register events with enhanced error handling
     for (const event of events) {
       if (event.once) {
-        client.once(event.name, serviceErrorHandler((...args) => event.execute(...args), event.name));
+        client.once(
+          event.name,
+          serviceErrorHandler((...args) => event.execute(...args), event.name)
+        );
       } else {
-        client.on(event.name, serviceErrorHandler((...args) => event.execute(...args), event.name));
+        client.on(
+          event.name,
+          serviceErrorHandler((...args) => event.execute(...args), event.name)
+        );
       }
     }
 
@@ -106,13 +136,13 @@ async function main() {
 }
 
 // Handle uncaught exceptions and unhandled rejections
-process.on('uncaughtException', (error) => {
-  console.error('Uncaught Exception:', error);
+process.on("uncaughtException", (error) => {
+  console.error("Uncaught Exception:", error);
   process.exit(1);
 });
 
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("Unhandled Rejection at:", promise, "reason:", reason);
   process.exit(1);
 });
 

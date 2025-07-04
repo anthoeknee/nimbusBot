@@ -145,3 +145,4 @@ bun.lockb
 *.js
 /src/generated/prisma
 *.db
+*.db*

@@ -27,7 +27,9 @@ function getHeaders() {
 const BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
 
 // Helper: Fetch media from URL and convert to base64
-async function fetchMediaAsBase64(url: string): Promise<{ data: string; mimeType: string }> {
+async function fetchMediaAsBase64(
+  url: string
+): Promise<{ data: string; mimeType: string }> {
   try {
     const response = await fetch(url);
     if (!response.ok) {
@@ -66,7 +68,11 @@ async function fetchMediaAsBase64(url: string): Promise<{ data: string; mimeType
 
     return { data: base64Data, mimeType };
   } catch (error) {
-    throw new Error(`Error fetching media from URL: ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(
+      `Error fetching media from URL: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
   }
 }
 
@@ -85,7 +91,9 @@ async function toGeminiContents(messages: AIChatRequest["messages"]) {
         } else if (["image", "audio", "video"].includes(contentItem.type)) {
           if (contentItem.source.type === "url") {
             try {
-              const { data, mimeType } = await fetchMediaAsBase64(contentItem.source.url);
+              const { data, mimeType } = await fetchMediaAsBase64(
+                contentItem.source.url
+              );
               parts.push({
                 inline_data: {
                   mime_type: contentItem.source.mime_type || mimeType,
@@ -93,15 +101,26 @@ async function toGeminiContents(messages: AIChatRequest["messages"]) {
                 },
               });
             } catch (error) {
-              console.error(`Failed to process media from URL: ${contentItem.source.url}`, error);
+              console.error(
+                `Failed to process media from URL: ${contentItem.source.url}`,
+                error
+              );
               // Continue with other parts instead of failing completely
-              parts.push({ text: `[Media processing failed: ${error instanceof Error ? error.message : String(error)}]` });
+              parts.push({
+                text: `[Media processing failed: ${
+                  error instanceof Error ? error.message : String(error)
+                }]`,
+              });
             }
           } else {
-            throw new Error(`Unsupported source type: ${contentItem.source.type}`);
+            throw new Error(
+              `Unsupported source type: ${contentItem.source.type}`
+            );
           }
         } else {
-          throw new Error(`Unsupported content type: ${(contentItem as any).type}`);
+          throw new Error(
+            `Unsupported content type: ${(contentItem as any).type}`
+          );
         }
       }
     } else {
@@ -131,16 +150,19 @@ function fromGeminiChatResponse(data: any, model: string): AIChatResponse {
         index: 0,
         message: {
           role: "assistant",
-          content: data.candidates?.[0]?.content?.parts?.[0]?.text || data.text || "",
+          content:
+            data.candidates?.[0]?.content?.parts?.[0]?.text || data.text || "",
         },
         finish_reason: data.candidates?.[0]?.finishReason || "stop",
       },
     ],
-    usage: data.usage ? {
-      prompt_tokens: data.usage.promptTokens,
-      completion_tokens: data.usage.completionTokens,
-      total_tokens: data.usage.totalTokens,
-    } : undefined,
+    usage: data.usage
+      ? {
+          prompt_tokens: data.usage.promptTokens,
+          completion_tokens: data.usage.completionTokens,
+          total_tokens: data.usage.totalTokens,
+        }
+      : undefined,
   };
 }
 
@@ -154,13 +176,28 @@ export class GeminiProvider implements AIProviderInterface {
       // Convert messages to Gemini format with multimodal support
       const contents = await toGeminiContents(request.messages);
 
-      const body = {
+      // Map OpenAI-style tools to Gemini functionDeclarations
+      let tools: any[] | undefined = undefined;
+      if (request.tools && request.tools.length > 0) {
+        tools = [
+          {
+            functionDeclarations: request.tools.map((tool) => ({
+              name: tool.function.name,
+              description: tool.function.description,
+              parameters: tool.function.parameters,
+            })),
+          },
+        ];
+      }
+
+      const body: any = {
         contents: contents,
         generationConfig: {
           temperature: request.temperature,
           maxOutputTokens: request.maxTokens,
         },
       };
+      if (tools) body.tools = tools;
 
       const res = await fetch(url, {
         method: "POST",
@@ -174,7 +211,47 @@ export class GeminiProvider implements AIProviderInterface {
       }
 
       const data = await res.json();
-      return fromGeminiChatResponse(data, model);
+      // Patch: parse function_call in response and map to tool_calls in AIChatMessage
+      const candidate = data.candidates?.[0];
+      let tool_calls = undefined;
+      if (candidate?.content?.parts?.[0]?.functionCall) {
+        const fc = candidate.content.parts[0].functionCall;
+        tool_calls = [
+          {
+            id: fc.name, // Gemini does not provide an id, so use name as fallback
+            type: "function",
+            function: {
+              name: fc.name,
+              arguments: JSON.stringify(fc.args || {}),
+            },
+          },
+        ];
+      }
+      // Compose the AIChatResponse with tool_calls if present
+      return {
+        id: data.candidate_id || data.id || "",
+        object: "chat.completion",
+        created: Math.floor(Date.now() / 1000),
+        model,
+        choices: [
+          {
+            index: 0,
+            message: {
+              role: "assistant",
+              content: candidate?.content?.parts?.[0]?.text || data.text || "",
+              tool_calls,
+            },
+            finish_reason: candidate?.finishReason || "stop",
+          },
+        ],
+        usage: data.usage
+          ? {
+              prompt_tokens: data.usage.promptTokens,
+              completion_tokens: data.usage.completionTokens,
+              total_tokens: data.usage.totalTokens,
+            }
+          : undefined,
+      };
     } catch (error) {
       if (error instanceof Error) {
         throw new Error(`Gemini chat request failed: ${error.message}`);
@@ -189,11 +266,15 @@ export class GeminiProvider implements AIProviderInterface {
   }
 
   // Gemini does not support speech-to-text via public API as of June 2024
-  async speechToText(request: AISpeechToTextRequest): Promise<AISpeechToTextResponse> {
+  async speechToText(
+    request: AISpeechToTextRequest
+  ): Promise<AISpeechToTextResponse> {
     throw new Error("Gemini speech-to-text not implemented");
   }
 
-  async textToSpeech(request: AITextToSpeechRequest): Promise<AITextToSpeechResponse> {
+  async textToSpeech(
+    request: AITextToSpeechRequest
+  ): Promise<AITextToSpeechResponse> {
     // Default to Gemini 2.5 Flash Preview TTS model
     const model = request.model || "gemini-2.5-flash-preview-tts";
     const url = `${BASE_URL}/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
@@ -219,7 +300,16 @@ export class GeminiProvider implements AIProviderInterface {
       }
       // Assign default voices if not provided
       const defaultVoices = [
-        "Kore", "Puck", "Zephyr", "Charon", "Fenrir", "Leda", "Orus", "Aoede", "Callirrhoe", "Autonoe"
+        "Kore",
+        "Puck",
+        "Zephyr",
+        "Charon",
+        "Fenrir",
+        "Leda",
+        "Orus",
+        "Aoede",
+        "Callirrhoe",
+        "Autonoe",
       ];
       let i = 0;
       config.speechConfig = {
@@ -228,7 +318,8 @@ export class GeminiProvider implements AIProviderInterface {
             speaker,
             voiceConfig: {
               prebuiltVoiceConfig: {
-                voiceName: request.voice || defaultVoices[i++ % defaultVoices.length],
+                voiceName:
+                  request.voice || defaultVoices[i++ % defaultVoices.length],
               },
             },
           })),
@@ -246,9 +337,7 @@ export class GeminiProvider implements AIProviderInterface {
     }
 
     // Compose contents
-    const contents = [
-      { parts: [{ text: request.text }] }
-    ];
+    const contents = [{ parts: [{ text: request.text }] }];
 
     const body = {
       contents,
@@ -266,7 +355,8 @@ export class GeminiProvider implements AIProviderInterface {
     const data = await res.json();
 
     // The audio is base64-encoded PCM in: data.candidates[0].content.parts[0].inlineData.data
-    const base64Audio = data.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+    const base64Audio =
+      data.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
     if (!base64Audio) throw new Error("No audio data returned from Gemini TTS");
 
     // Convert to Uint8Array for Discord
@@ -282,8 +372,8 @@ export class GeminiProvider implements AIProviderInterface {
   async vision(request: AIVisionRequest): Promise<AIVisionResponse> {
     throw new Error(
       "The vision method is deprecated. Please use the unified chat method instead, " +
-      "which supports multimodal input including images, audio, and video. " +
-      "Example: Use chat() with messages containing content arrays that include image/audio/video parts."
+        "which supports multimodal input including images, audio, and video. " +
+        "Example: Use chat() with messages containing content arrays that include image/audio/video parts."
     );
   }
 
@@ -294,7 +384,13 @@ export class GeminiProvider implements AIProviderInterface {
       provider: "gemini",
       model: request.model || "gemini-1.5-pro-latest",
       messages: [
-        { role: "user", content: typeof request.input === "string" ? request.input : JSON.stringify(request.input) },
+        {
+          role: "user",
+          content:
+            typeof request.input === "string"
+              ? request.input
+              : JSON.stringify(request.input),
+        },
       ],
     };
     const chatRes = await this.chat(chatReq);
