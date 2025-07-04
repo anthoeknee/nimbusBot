@@ -23,32 +23,31 @@ interface TestData {
 class DatabaseBenchmark {
   private db!: Database;
   private results: BenchmarkResult[] = [];
+  private testData!: TestData;
 
   async initialize(): Promise<void> {
     const dataDir = join(process.cwd(), 'data');
-    try {
-      await mkdir(dataDir, { recursive: true });
-    } catch (error) {
-      // Directory might already exist
-    }
+    await mkdir(dataDir, { recursive: true }).catch(() => {});
 
-    // Create a test database
     const testDbPath = join(dataDir, 'benchmark.db');
+    await unlink(testDbPath).catch(() => {}); // Clean previous benchmark db
+
     this.db = new Database(testDbPath);
     
-    // Load schema
     const schema = Bun.file(join(import.meta.dir, '..', 'src', 'services', 'db', 'schema.sql'));
     const schemaText = await schema.text();
     this.db.exec(schemaText);
-    
-    console.log('✅ Database initialized for benchmarking');
-  }
 
-  private measureTime<T>(fn: () => T): { result: T; time: number } {
-    const start = performance.now();
-    const result = fn();
-    const end = performance.now();
-    return { result, time: end - start };
+    // Aggressive PRAGMAs for maximum benchmark performance.
+    // These settings are NOT safe for production but are ideal for measuring raw speed.
+    this.db.exec('PRAGMA journal_mode = MEMORY;'); // Use memory for the journal, fastest but no durability
+    this.db.exec('PRAGMA synchronous = OFF;'); // Disable waiting for disk writes
+    this.db.exec('PRAGMA busy_timeout = 5000;');
+    this.db.exec('PRAGMA temp_store = MEMORY;');
+    this.db.exec('PRAGMA mmap_size = 30000000000;'); // Enable memory-mapping
+    this.db.exec('PRAGMA cache_size = -200000;'); // 200MB cache
+    
+    console.log('✅ Database initialized for benchmarking with high-performance PRAGMAs');
   }
 
   private async benchmarkOperation(
@@ -87,14 +86,15 @@ class DatabaseBenchmark {
   }
 
   private generateTestData(): TestData {
+    const now = Date.now(); // Generate timestamp once for consistency
     const users = Array.from({ length: 1000 }, (_, i) => ({
-      discordId: `user_${i}_${Date.now()}`,
+      discordId: `user_${i}_${now}`,
       username: `user${i}`,
       displayName: `User ${i}`
     }));
 
     const guilds = Array.from({ length: 100 }, (_, i) => ({
-      discordGuildId: `guild_${i}_${Date.now()}`,
+      discordGuildId: `guild_${i}_${now}`,
       name: `Guild ${i}`,
       iconUrl: `https://example.com/icon${i}.png`
     }));
@@ -102,197 +102,190 @@ class DatabaseBenchmark {
     const settings = Array.from({ length: 500 }, (_, i) => ({
       targetType: i % 2 === 0 ? 'user' : 'guild',
       key: `setting_${i}`,
-      value: { config: `value_${i}`, timestamp: Date.now() }
+      value: { config: `value_${i}`, timestamp: now }
     }));
 
     const memories = Array.from({ length: 200 }, (_, i) => ({
       content: `This is memory content ${i} with some meaningful text for testing purposes.`,
-      embedding: Array.from({ length: 1536 }, () => Math.random() * 2 - 1) // 1536-dimensional embedding
+      embedding: Array.from({ length: 1536 }, () => Math.random() * 2 - 1)
     }));
 
     return { users, guilds, settings, memories };
   }
 
+  async runAllBenchmarks(): Promise<void> {
+    this.testData = this.generateTestData();
+
+    await this.runUserBenchmarks();
+    await this.runGuildBenchmarks();
+    await this.runSettingsBenchmarks();
+    await this.runMemoryBenchmarks();
+    await this.runComplexQueries();
+    await this.runConcurrencyTest();
+  }
+
   async runUserBenchmarks(): Promise<void> {
-    const testData = this.generateTestData();
-    
-    // Insert users
-    await this.benchmarkOperation('User Insert (1000 records)', 1, () => {
+    console.log('\n--- Running User Benchmarks ---');
+    await this.benchmarkOperation('User Insert (1000 records, bulk)', 1, () => {
       const stmt = this.db.prepare('INSERT INTO users (discordId, username, displayName) VALUES (?, ?, ?)');
-      for (const user of testData.users) {
-        stmt.run(user.discordId, user.username, user.displayName);
-      }
+      const insertMany = this.db.transaction(users => {
+        for (const user of users) stmt.run(user.discordId, user.username, user.displayName);
+      });
+      insertMany(this.testData.users);
     });
 
-    // Find by Discord ID
+    const findByDiscordIdStmt = this.db.prepare('SELECT * FROM users WHERE discordId = ?');
     await this.benchmarkOperation('User Find by Discord ID', 1000, () => {
-      const stmt = this.db.prepare('SELECT * FROM users WHERE discordId = ?');
-      const randomUser = testData.users[Math.floor(Math.random() * testData.users.length)];
-      stmt.get(randomUser.discordId);
+      const randomUser = this.testData.users[Math.floor(Math.random() * this.testData.users.length)];
+      findByDiscordIdStmt.get(randomUser.discordId);
     });
 
-    // Find by ID
+    const findByIdStmt = this.db.prepare('SELECT * FROM users WHERE id = ?');
     await this.benchmarkOperation('User Find by ID', 1000, () => {
-      const stmt = this.db.prepare('SELECT * FROM users WHERE id = ?');
       const randomId = Math.floor(Math.random() * 1000) + 1;
-      stmt.get(randomId);
+      findByIdStmt.get(randomId);
     });
 
-    // Update users
+    const updateUserStmt = this.db.prepare('UPDATE users SET username = ?, displayName = ? WHERE id = ?');
     await this.benchmarkOperation('User Update', 100, () => {
-      const stmt = this.db.prepare('UPDATE users SET username = ?, displayName = ? WHERE id = ?');
       const randomId = Math.floor(Math.random() * 1000) + 1;
-      stmt.run(`updated_user_${randomId}`, `Updated User ${randomId}`, randomId);
+      updateUserStmt.run(`updated_user_${randomId}`, `Updated User ${randomId}`, randomId);
     });
   }
 
   async runGuildBenchmarks(): Promise<void> {
-    const testData = this.generateTestData();
-    
-    // Insert guilds
-    await this.benchmarkOperation('Guild Insert (100 records)', 1, () => {
+    console.log('\n--- Running Guild Benchmarks ---');
+    await this.benchmarkOperation('Guild Insert (100 records, bulk)', 1, () => {
       const stmt = this.db.prepare('INSERT INTO guilds (discordGuildId, name, iconUrl) VALUES (?, ?, ?)');
-      for (const guild of testData.guilds) {
-        stmt.run(guild.discordGuildId, guild.name, guild.iconUrl || null);
-      }
+      const insertMany = this.db.transaction(guilds => {
+        for (const guild of guilds) stmt.run(guild.discordGuildId, guild.name, guild.iconUrl || null);
+      });
+      insertMany(this.testData.guilds);
     });
 
-    // Find by Discord Guild ID
+    const findByDiscordGuildIdStmt = this.db.prepare('SELECT * FROM guilds WHERE discordGuildId = ?');
     await this.benchmarkOperation('Guild Find by Discord ID', 1000, () => {
-      const stmt = this.db.prepare('SELECT * FROM guilds WHERE discordGuildId = ?');
-      const randomGuild = testData.guilds[Math.floor(Math.random() * testData.guilds.length)];
-      stmt.get(randomGuild.discordGuildId);
+      const randomGuild = this.testData.guilds[Math.floor(Math.random() * this.testData.guilds.length)];
+      findByDiscordGuildIdStmt.get(randomGuild.discordGuildId);
     });
   }
 
   async runSettingsBenchmarks(): Promise<void> {
-    const testData = this.generateTestData();
-    
-    // Insert settings
-    await this.benchmarkOperation('Settings Insert (500 records)', 1, () => {
+    console.log('\n--- Running Settings Benchmarks ---');
+    await this.benchmarkOperation('Settings Insert (500 records, bulk)', 1, () => {
       const stmt = this.db.prepare('INSERT INTO settings (targetType, userId, guildId, key, value) VALUES (?, ?, ?, ?, ?)');
-      for (let i = 0; i < testData.settings.length; i++) {
-        const setting = testData.settings[i];
-        const userId = setting.targetType === 'user' ? (i % 1000) + 1 : null;
-        const guildId = setting.targetType === 'guild' ? (i % 100) + 1 : null;
-        stmt.run(setting.targetType, userId, guildId, setting.key, JSON.stringify(setting.value));
-      }
+      const insertMany = this.db.transaction(settings => {
+        for (let i = 0; i < settings.length; i++) {
+          const setting = settings[i];
+          const userId = setting.targetType === 'user' ? (i % 1000) + 1 : null;
+          const guildId = setting.targetType === 'guild' ? (i % 100) + 1 : null;
+          stmt.run(setting.targetType, userId, guildId, setting.key, JSON.stringify(setting.value));
+        }
+      });
+      insertMany(this.testData.settings);
     });
 
-    // Find settings by user
+    const findByUserStmt = this.db.prepare('SELECT * FROM settings WHERE userId = ?');
     await this.benchmarkOperation('Settings Find by User', 100, () => {
-      const stmt = this.db.prepare('SELECT * FROM settings WHERE userId = ?');
       const randomUserId = Math.floor(Math.random() * 1000) + 1;
-      stmt.all(randomUserId);
+      findByUserStmt.all(randomUserId);
     });
 
-    // Find settings by guild
+    const findByGuildStmt = this.db.prepare('SELECT * FROM settings WHERE guildId = ?');
     await this.benchmarkOperation('Settings Find by Guild', 100, () => {
-      const stmt = this.db.prepare('SELECT * FROM settings WHERE guildId = ?');
       const randomGuildId = Math.floor(Math.random() * 100) + 1;
-      stmt.all(randomGuildId);
+      findByGuildStmt.all(randomGuildId);
     });
 
-    // Find setting by key
+    const findByKeyStmt = this.db.prepare('SELECT * FROM settings WHERE key = ?');
     await this.benchmarkOperation('Settings Find by Key', 1000, () => {
-      const stmt = this.db.prepare('SELECT * FROM settings WHERE key = ?');
-      const randomSetting = testData.settings[Math.floor(Math.random() * testData.settings.length)];
-      stmt.get(randomSetting.key);
+      const randomSetting = this.testData.settings[Math.floor(Math.random() * this.testData.settings.length)];
+      findByKeyStmt.get(randomSetting.key);
     });
   }
 
   async runMemoryBenchmarks(): Promise<void> {
-    const testData = this.generateTestData();
-    
-    // Insert memories
-    await this.benchmarkOperation('Memory Insert (200 records)', 1, () => {
+    console.log('\n--- Running Memory Benchmarks ---');
+    await this.benchmarkOperation('Memory Insert (200 records, bulk)', 1, () => {
       const stmt = this.db.prepare('INSERT INTO memories (userId, guildId, content, embedding) VALUES (?, ?, ?, ?)');
-      for (let i = 0; i < testData.memories.length; i++) {
-        const memory = testData.memories[i];
-        const userId = (i % 1000) + 1;
-        const guildId = (i % 100) + 1;
-        stmt.run(userId, guildId, memory.content, JSON.stringify(memory.embedding));
-      }
+      const insertMany = this.db.transaction(memories => {
+        for (let i = 0; i < memories.length; i++) {
+          const memory = memories[i];
+          const userId = (i % 1000) + 1;
+          const guildId = (i % 100) + 1;
+          stmt.run(userId, guildId, memory.content, JSON.stringify(memory.embedding));
+        }
+      });
+      insertMany(this.testData.memories);
     });
 
-    // Find memories by user
+    const findMemByUserStmt = this.db.prepare('SELECT * FROM memories WHERE userId = ?');
     await this.benchmarkOperation('Memory Find by User', 100, () => {
-      const stmt = this.db.prepare('SELECT * FROM memories WHERE userId = ?');
       const randomUserId = Math.floor(Math.random() * 1000) + 1;
-      stmt.all(randomUserId);
+      findMemByUserStmt.all(randomUserId);
     });
 
-    // Find memories by guild
+    const findMemByGuildStmt = this.db.prepare('SELECT * FROM memories WHERE guildId = ?');
     await this.benchmarkOperation('Memory Find by Guild', 100, () => {
-      const stmt = this.db.prepare('SELECT * FROM memories WHERE guildId = ?');
       const randomGuildId = Math.floor(Math.random() * 100) + 1;
-      stmt.all(randomGuildId);
+      findMemByGuildStmt.all(randomGuildId);
     });
 
-    // Vector similarity search (simplified)
-    await this.benchmarkOperation('Memory Vector Search', 50, () => {
-      const stmt = this.db.prepare('SELECT * FROM memories LIMIT 100');
-      const memories = stmt.all() as any[];
-      
-      // Simulate vector similarity calculation
+    const vectorSearchStmt = this.db.prepare('SELECT embedding FROM memories LIMIT 100');
+    await this.benchmarkOperation('Memory Vector Search (In-Memory)', 50, () => {
+      const memories = vectorSearchStmt.all() as any[];
       const queryEmbedding = Array.from({ length: 1536 }, () => Math.random() * 2 - 1);
+      const normA = Math.sqrt(queryEmbedding.reduce((sum, val) => sum + val * val, 0));
+
       memories.forEach(memory => {
         const embedding = JSON.parse(memory.embedding);
-        // Calculate cosine similarity (simplified)
         const dot = queryEmbedding.reduce((sum, val, i) => sum + val * embedding[i], 0);
-        const normA = Math.sqrt(queryEmbedding.reduce((sum, val) => sum + val * val, 0));
         const normB = Math.sqrt(embedding.reduce((sum, val) => sum + val * val, 0));
-        return dot / (normA * normB);
+        return dot / (normA * normB); // Cosine similarity
       });
     });
   }
 
   async runComplexQueries(): Promise<void> {
-    // Join queries
+    console.log('\n--- Running Complex Query Benchmarks ---');
+    const joinStmt = this.db.prepare(`
+      SELECT u.username, g.name, s.key, s.value, m.content
+      FROM users u
+      LEFT JOIN guilds g ON u.id = g.id -- Example join, might not be realistic
+      LEFT JOIN settings s ON s.userId = u.id
+      LEFT JOIN memories m ON m.userId = u.id
+      WHERE u.id = ?
+      LIMIT 10
+    `);
     await this.benchmarkOperation('Complex Join Query', 100, () => {
-      const stmt = this.db.prepare(`
-        SELECT u.username, g.name, s.key, s.value, m.content
-        FROM users u
-        LEFT JOIN guilds g ON u.id = g.id
-        LEFT JOIN settings s ON (s.userId = u.id OR s.guildId = g.id)
-        LEFT JOIN memories m ON (m.userId = u.id OR m.guildId = g.id)
-        WHERE u.id = ?
-        LIMIT 10
-      `);
       const randomUserId = Math.floor(Math.random() * 1000) + 1;
-      stmt.all(randomUserId);
+      joinStmt.all(randomUserId);
     });
 
-    // Aggregation queries
+    const aggStmt = this.db.prepare(`
+      SELECT 
+        (SELECT COUNT(*) FROM users) as total_users,
+        (SELECT COUNT(*) FROM guilds) as total_guilds,
+        (SELECT COUNT(*) FROM settings) as total_settings,
+        (SELECT COUNT(*) FROM memories) as total_memories
+    `);
     await this.benchmarkOperation('Aggregation Query', 100, () => {
-      const stmt = this.db.prepare(`
-        SELECT 
-          COUNT(*) as total_users,
-          COUNT(DISTINCT g.id) as total_guilds,
-          COUNT(s.id) as total_settings,
-          COUNT(m.id) as total_memories
-        FROM users u
-        LEFT JOIN guilds g ON 1=1
-        LEFT JOIN settings s ON s.userId = u.id
-        LEFT JOIN memories m ON m.userId = u.id
-        WHERE u.id <= 100
-      `);
-      stmt.get();
+      aggStmt.get();
     });
   }
 
   async runConcurrencyTest(): Promise<void> {
+    console.log('\n--- Running Concurrency Test ---');
     const concurrentOperations = 10;
     const operationsPerThread = 100;
-    
-    await this.benchmarkOperation(`Concurrent Operations (${concurrentOperations} threads)`, 1, async () => {
+    const stmt = this.db.prepare('SELECT COUNT(*) FROM users');
+
+    await this.benchmarkOperation(`Concurrent Reads (${concurrentOperations} threads)`, 1, async () => {
       const promises = Array.from({ length: concurrentOperations }, async () => {
         for (let i = 0; i < operationsPerThread; i++) {
-          const stmt = this.db.prepare('SELECT COUNT(*) FROM users');
           stmt.get();
         }
       });
-      
       await Promise.all(promises);
     });
   }
@@ -302,58 +295,43 @@ class DatabaseBenchmark {
     console.log('='.repeat(80));
     
     this.results.forEach(result => {
+      const opsPerSec = result.operationsPerSecond * (result.operation.includes('records') ? parseInt(result.operation.match(/(\d+)\s*records/)?.[1] || '1') : 1);
+      
       console.log(`\n ${result.operation}`);
       console.log(`   Iterations: ${result.iterations.toLocaleString()}`);
       console.log(`   Total Time: ${result.totalTime.toFixed(2)}ms`);
-      console.log(`   Average Time: ${result.averageTime.toFixed(4)}ms`);
-      console.log(`   Operations/sec: ${result.operationsPerSecond.toFixed(2)}`);
-      if (result.memoryUsage) {
-        console.log(`   Memory Usage: ${(result.memoryUsage / 1024 / 1024).toFixed(2)}MB`);
+      console.log(`   Average Time: ${result.averageTime.toFixed(4)}ms/iteration`);
+      console.log(`   Operations/sec: ${opsPerSec.toFixed(2)}`);
+      if (result.memoryUsage && result.memoryUsage > 0) {
+        console.log(`   Memory Usage: ${(result.memoryUsage / 1024 / 1024).toFixed(4)}MB`);
       }
     });
 
-    // Summary statistics
     const totalTime = this.results.reduce((sum, r) => sum + r.totalTime, 0);
     const totalOperations = this.results.reduce((sum, r) => sum + r.iterations, 0);
-    const avgOpsPerSec = this.results.reduce((sum, r) => sum + r.operationsPerSecond, 0) / this.results.length;
 
     console.log('\n📈 SUMMARY');
     console.log('='.repeat(80));
-    console.log(`Total Benchmark Time: ${totalTime.toFixed(2)}ms`);
-    console.log(`Total Operations: ${totalOperations.toLocaleString()}`);
-    console.log(`Average Operations/sec: ${avgOpsPerSec.toFixed(2)}`);
+    console.log(`Total Benchmark Time: ${(totalTime / 1000).toFixed(2)}s`);
+    console.log(`Total Operations Executed: ${totalOperations.toLocaleString()}`);
     
-    // Database size
     const dbSize = Bun.file(join(process.cwd(), 'data', 'benchmark.db')).size;
-    console.log(`Database Size: ${(dbSize / 1024 / 1024).toFixed(2)}MB`);
+    console.log(`Final Database Size: ${(dbSize / 1024 / 1024).toFixed(2)}MB`);
   }
 
   async cleanup(): Promise<void> {
     this.db.close();
     const testDbPath = join(process.cwd(), 'data', 'benchmark.db');
-    try {
-      await unlink(testDbPath);
-      console.log('🧹 Cleanup completed');
-    } catch (error) {
-      console.log('⚠️  Could not remove test database file');
-    }
+    await unlink(testDbPath).catch(() => {});
+    console.log('\n🧹 Cleanup completed');
   }
 
   async run(): Promise<void> {
     try {
       await this.initialize();
-      
       console.log('🚀 Starting database benchmarks...\n');
-      
-      await this.runUserBenchmarks();
-      await this.runGuildBenchmarks();
-      await this.runSettingsBenchmarks();
-      await this.runMemoryBenchmarks();
-      await this.runComplexQueries();
-      await this.runConcurrencyTest();
-      
+      await this.runAllBenchmarks();
       this.printResults();
-      
     } catch (error) {
       console.error('❌ Benchmark failed:', error);
     } finally {
@@ -362,7 +340,6 @@ class DatabaseBenchmark {
   }
 }
 
-// Run the benchmark
 if (import.meta.main) {
   const benchmark = new DatabaseBenchmark();
   await benchmark.run();

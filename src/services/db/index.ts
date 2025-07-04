@@ -19,6 +19,39 @@ export class DatabaseService {
     initializeDatabase();
   }
 
+  // Add convenience methods for common operations
+  async getUserOrCreate(discordId: string, userData?: any) {
+    return await this.users.findOrCreateByDiscordId(discordId, userData);
+  }
+
+  async getGuildOrCreate(discordGuildId: string, guildData?: any) {
+    return await this.guilds.findOrCreateByDiscordId(discordGuildId, guildData);
+  }
+
+  async getSetting(key: string, userId?: number, guildId?: number) {
+    return await this.settings.getSettingValue(key, userId, guildId);
+  }
+
+  async setSetting(key: string, value: any, userId?: number, guildId?: number) {
+    return await this.settings.setSetting(key, value, userId, guildId);
+  }
+
+  // Add transaction support for complex operations
+  async transaction<T>(fn: () => Promise<T>): Promise<T> {
+    const { db } = await import('./client');
+    return db.transaction(fn)();
+  }
+
+  // Add health check
+  async healthCheck(): Promise<boolean> {
+    try {
+      await this.users.count();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   // Legacy compatibility methods
   get db() {
     return {

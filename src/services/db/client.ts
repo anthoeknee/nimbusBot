@@ -36,6 +36,12 @@ async function initializeDatabase(): Promise<void> {
     const schema = Bun.file(join(import.meta.dir, 'schema.sql'));
     const schemaText = await schema.text();
     db.exec(schemaText);
+
+    // Set PRAGMAs for performance and concurrency
+    db.exec('PRAGMA journal_mode = WAL;');
+    db.exec('PRAGMA synchronous = NORMAL;');
+    db.exec('PRAGMA busy_timeout = 5000;');
+
     console.log('Database initialized successfully');
     isInitialized = true;
   } catch (error) {
@@ -65,6 +71,44 @@ export function safeJsonStringify<T>(value: T): string {
     return JSON.stringify(null);
   }
 }
+
+// Add Bun's SQL template literal support for better query building
+export function sql(strings: TemplateStringsArray, ...values: any[]) {
+  return { strings, values };
+}
+
+// Enhanced query builder using Bun's SQL features
+export function buildQuery(template: ReturnType<typeof sql>, params: any[] = []) {
+  let query = template.strings[0];
+  for (let i = 0; i < template.values.length; i++) {
+    query += '?' + template.strings[i + 1];
+  }
+  return { query, params: [...template.values, ...params] };
+}
+
+// Add connection pooling and performance optimizations
+export function optimizeDatabase() {
+  // Enable WAL mode for better concurrency
+  db.exec('PRAGMA journal_mode = WAL;');
+  
+  // Optimize for read-heavy workloads
+  db.exec('PRAGMA synchronous = NORMAL;');
+  
+  // Increase cache size for better performance
+  db.exec('PRAGMA cache_size = -64000;'); // 64MB cache
+  
+  // Enable memory-mapped I/O
+  db.exec('PRAGMA mmap_size = 268435456;'); // 256MB
+  
+  // Optimize for bulk operations
+  db.exec('PRAGMA temp_store = MEMORY;');
+  
+  // Set busy timeout
+  db.exec('PRAGMA busy_timeout = 5000;');
+}
+
+// Call this after initialization
+optimizeDatabase();
 
 export { db, initializeDatabase };
 export default db;

@@ -113,4 +113,13 @@ export class MemoryRepository extends BaseRepository<MemoryRow, CreateMemoryInpu
     } as any; // Type assertion to bypass type checking
     return await super.update(id, serializedData);
   }
+
+  // Override createMany to handle embedding serialization
+  async createMany(data: CreateMemoryInput[]): Promise<MemoryRow[]> {
+    const serializedData = data.map(item => ({
+      ...item,
+      embedding: safeJsonStringify(item.embedding),
+    })) as any[]; // Type assertion to bypass type checking for super.createMany
+    return await super.createMany(serializedData);
+  }
 }

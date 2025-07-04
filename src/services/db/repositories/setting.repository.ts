@@ -72,6 +72,24 @@ export class SettingRepository extends BaseRepository<SettingRow, CreateSettingI
     return await this.delete(setting.id);
   }
 
+  // Override create to handle value serialization
+  async create(data: CreateSettingInput): Promise<SettingRow> {
+    const serializedData = {
+      ...data,
+      value: safeJsonStringify(data.value),
+    };
+    return await super.create(serializedData);
+  }
+
+  // Override createMany to handle value serialization
+  async createMany(data: CreateSettingInput[]): Promise<SettingRow[]> {
+    const serializedData = data.map(item => ({
+      ...item,
+      value: safeJsonStringify(item.value),
+    }));
+    return await super.createMany(serializedData);
+  }
+
   // Helper method to get parsed value
   async getSettingValue<T = any>(
     key: string, 
