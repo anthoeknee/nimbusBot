@@ -1,4 +1,4 @@
-import { Client, Collection, GatewayIntentBits, ChatInputCommandInteraction, Message } from "discord.js";
+import { Client, Collection, GatewayIntentBits, ChatInputCommandInteraction, Message, MessageFlags } from "discord.js";
 import { config } from "./config";
 import { loadCommands, loadEvents } from "./utils/loader";
 import { database } from "./services/db";
