@@ -15,5 +15,9 @@
     "@types/node": "^20.12.12",
     "prisma": "^6.11.0",
     "typescript": "^5.4.5"
+  },
+  "scripts": {
+    "benchmark": "bun run scripts/run-benchmark.ts",
+    "benchmark:detailed": "bun run scripts/benchmark_kv.ts"
   }
 }
