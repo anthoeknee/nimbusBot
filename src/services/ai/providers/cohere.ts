@@ -19,17 +19,23 @@ import {
   AIClassifyRequest,
   AIClassifyResponse,
 } from "../../../types/ai";
+import { BaseAIProvider } from "../BaseAIProvider";
 
-const COHERE_API_KEY = process.env.COHERE_API_KEY || "";
+export class CohereProvider
+  extends BaseAIProvider
+  implements AIProviderInterface
+{
+  constructor() {
+    super("COHERE_API_KEY");
+  }
 
-function getHeaders() {
-  return {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${COHERE_API_KEY}`,
-  };
-}
+  private getHeaders() {
+    return {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${this.apiKey}`,
+    };
+  }
 
-export class CohereProvider implements AIProviderInterface {
   async chat(request: AIChatRequest): Promise<AIChatResponse> {
     const body: any = {
       model: request.model,
@@ -42,7 +48,7 @@ export class CohereProvider implements AIProviderInterface {
 
     const res = await fetch("https://api.cohere.com/v2/chat", {
       method: "POST",
-      headers: getHeaders(),
+      headers: this.getHeaders(),
       body: JSON.stringify(body),
     });
     if (!res.ok) throw new Error(`Cohere chat error: ${res.statusText}`);
@@ -89,7 +95,7 @@ export class CohereProvider implements AIProviderInterface {
   async embed(request: AIEmbedRequest): Promise<AIEmbedResponse> {
     const res = await fetch("https://api.cohere.com/v2/embed", {
       method: "POST",
-      headers: getHeaders(),
+      headers: this.getHeaders(),
       body: JSON.stringify({
         texts: request.texts,
         model: request.model,
@@ -104,7 +110,7 @@ export class CohereProvider implements AIProviderInterface {
   async rerank(request: AIRerankRequest): Promise<AIRerankResponse> {
     const res = await fetch("https://api.cohere.com/v2/rerank", {
       method: "POST",
-      headers: getHeaders(),
+      headers: this.getHeaders(),
       body: JSON.stringify({
         model: request.model || "rerank-v3.5",
         query: request.query,
@@ -139,7 +145,7 @@ export class CohereProvider implements AIProviderInterface {
 
     const res = await fetch("https://api.cohere.com/v1/classify", {
       method: "POST",
-      headers: getHeaders(),
+      headers: this.getHeaders(),
       body: JSON.stringify(body),
     });
     if (!res.ok) throw new Error(`Cohere classify error: ${res.statusText}`);
@@ -155,21 +161,21 @@ export class CohereProvider implements AIProviderInterface {
   async speechToText(
     request: AISpeechToTextRequest
   ): Promise<AISpeechToTextResponse> {
-    throw new Error("Cohere speech-to-text not implemented");
+    BaseAIProvider.notImplemented("speech-to-text", "Cohere");
   }
 
   async textToSpeech(
     request: AITextToSpeechRequest
   ): Promise<AITextToSpeechResponse> {
-    throw new Error("Cohere text-to-speech not implemented");
+    BaseAIProvider.notImplemented("text-to-speech", "Cohere");
   }
 
   async vision(request: AIVisionRequest): Promise<AIVisionResponse> {
-    throw new Error("Cohere vision not implemented");
+    BaseAIProvider.notImplemented("vision", "Cohere");
   }
 
   async reasoning(request: AIReasoningRequest): Promise<AIReasoningResponse> {
-    throw new Error("Cohere reasoning not implemented");
+    BaseAIProvider.notImplemented("reasoning", "Cohere");
   }
 
   embeddings(request: AIEmbedRequest): Promise<AIEmbedResponse> {

@@ -13,17 +13,28 @@ import {
   AIEmbedRequest,
   AIEmbedResponse,
 } from "../../../types/ai";
+import { BaseAIProvider } from "../BaseAIProvider";
 
-const GROQ_API_KEY = process.env.GROQ_API_KEY || ""; // Set this in your environment
+export class GroqProvider
+  extends BaseAIProvider
+  implements AIProviderInterface
+{
+  constructor() {
+    super("GROQ_API_KEY");
+  }
 
-function getHeaders(isJson = true) {
-  return {
-    Authorization: `Bearer ${GROQ_API_KEY}`,
-    ...(isJson ? { "Content-Type": "application/json" } : {}),
-  };
-}
+  private getHeaders(isJson = true) {
+    if (isJson) {
+      return {
+        Authorization: `Bearer ${this.apiKey}`,
+        "Content-Type": "application/json",
+      };
+    }
+    return {
+      Authorization: `Bearer ${this.apiKey}`,
+    };
+  }
 
-export class GroqProvider implements AIProviderInterface {
   async chat(request: AIChatRequest): Promise<AIChatResponse> {
     const body: any = {
       model: request.model,
@@ -37,7 +48,7 @@ export class GroqProvider implements AIProviderInterface {
 
     const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
-      headers: getHeaders(),
+      headers: this.getHeaders(),
       body: JSON.stringify(body),
     });
     if (!res.ok) throw new Error(`Groq chat error: ${res.statusText}`);
@@ -73,7 +84,7 @@ export class GroqProvider implements AIProviderInterface {
       "https://api.groq.com/openai/v1/audio/transcriptions",
       {
         method: "POST",
-        headers: { Authorization: `Bearer ${GROQ_API_KEY}` }, // Don't set Content-Type for FormData
+        headers: this.getHeaders(false),
         body: form,
       }
     );
@@ -86,22 +97,18 @@ export class GroqProvider implements AIProviderInterface {
   async textToSpeech(
     request: AITextToSpeechRequest
   ): Promise<AITextToSpeechResponse> {
-    // Groq does not currently support TTS (as of docs provided)
-    throw new Error("Groq text-to-speech not implemented");
+    BaseAIProvider.notImplemented("text-to-speech", "Groq");
   }
 
   async vision(request: AIVisionRequest): Promise<AIVisionResponse> {
-    // Groq does not currently support vision/image endpoints (as of docs provided)
-    throw new Error("Groq vision not implemented");
+    BaseAIProvider.notImplemented("vision", "Groq");
   }
 
   async reasoning(request: AIReasoningRequest): Promise<AIReasoningResponse> {
-    // Groq does not currently have a generic reasoning endpoint; use chat for most reasoning tasks
-    // You can route to chat or throw an error
-    throw new Error("Groq reasoning not implemented");
+    BaseAIProvider.notImplemented("reasoning", "Groq");
   }
 
   embeddings(request: AIEmbedRequest): Promise<AIEmbedResponse> {
-    throw new Error("Groq embeddings not implemented");
+    BaseAIProvider.notImplemented("embeddings", "Groq");
   }
 }

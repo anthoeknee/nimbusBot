@@ -28,9 +28,9 @@ interface StoreStats {
  * Allows customization during instantiation.
  */
 interface MemoryStoreConfig {
-  cleanupInterval?: number;          // Interval for background cleanup in milliseconds (default: 60000ms)
-  maxEntries?: number;               // Maximum number of entries the store can hold (default: 10000)
-  enableStats?: boolean;             // Whether to track basic stats (default: true)
+  cleanupInterval?: number; // Interval for background cleanup in milliseconds (default: 60000ms)
+  maxEntries?: number; // Maximum number of entries the store can hold (default: 10000)
+  enableStats?: boolean; // Whether to track basic stats (default: true)
   enableDetailedMemoryStats?: boolean; // Whether to calculate detailed memory usage (expensive, default: false)
 }
 
@@ -45,7 +45,7 @@ export class MemoryStore implements Service {
     expiredEntries: 0,
     totalMemoryUsage: 0,
     cleanupRuns: 0,
-    lastCleanup: 0
+    lastCleanup: 0,
   };
 
   // Configuration options, made accessible via a constructor
@@ -62,7 +62,9 @@ export class MemoryStore implements Service {
       enableStats: config?.enableStats ?? true,
       enableDetailedMemoryStats: config?.enableDetailedMemoryStats ?? false,
     };
-    logger.debug(`MemoryStore initialized with config: ${JSON.stringify(this.config)}`);
+    logger.debug(
+      `MemoryStore initialized with config: ${JSON.stringify(this.config)}`
+    );
   }
 
   async initialize(): Promise<void> {
@@ -77,23 +79,24 @@ export class MemoryStore implements Service {
    * If the store is full, the least recently used entry will be evicted.
    */
   set<T>(key: string, value: T, ttlSeconds?: number): void {
-    if (!key || typeof key !== 'string') {
-      throw new Error('Key must be a non-empty string');
+    if (!key || typeof key !== "string") {
+      throw new Error("Key must be a non-empty string");
     }
 
     // Maintain LRU order: If the key exists, delete it first to ensure
     // it's placed at the end of the Map's insertion order (most recently used).
     if (this.store.has(key)) {
-        this.store.delete(key);
+      this.store.delete(key);
     }
     // If the store is at max capacity and we're adding a *new* key, evict the oldest.
     // This check is 'else if' because if the key already exists, we're replacing, not adding.
-    else if (this.store.size >= this.config.maxEntries) { // Use config.maxEntries
-        this.evictOldestEntry();
+    else if (this.store.size >= this.config.maxEntries) {
+      // Use config.maxEntries
+      this.evictOldestEntry();
     }
 
     const now = Date.now();
-    const expiresAt = ttlSeconds ? now + (ttlSeconds * 1000) : null;
+    const expiresAt = ttlSeconds ? now + ttlSeconds * 1000 : null;
 
     const entry: StoreEntry<T> = {
       value,
@@ -105,8 +108,12 @@ export class MemoryStore implements Service {
     if (this.config.enableStats) {
       this.stats.totalEntries = this.store.size;
     }
-    
-    logger.debug(`Stored key "${key}" with TTL: ${ttlSeconds ? `${ttlSeconds}s` : 'no expiration'}`);
+
+    logger.debug(
+      `Stored key "${key}" with TTL: ${
+        ttlSeconds ? `${ttlSeconds}s` : "no expiration"
+      }`
+    );
   }
 
   /**
@@ -115,33 +122,35 @@ export class MemoryStore implements Service {
    */
   setBulk<T>(entries: Array<[string, T, number?]>): void {
     // Pre-calculate how many *new* keys will be added to determine eviction needs.
-    const uniqueNewKeys = new Set(entries.map(([key]) => key).filter(key => !this.store.has(key)));
+    const uniqueNewKeys = new Set(
+      entries.map(([key]) => key).filter((key) => !this.store.has(key))
+    );
     const spaceNeeded = uniqueNewKeys.size;
     const currentSize = this.store.size;
-    const overflow = (currentSize + spaceNeeded) - this.config.maxEntries; // Use config.maxEntries
+    const overflow = currentSize + spaceNeeded - this.config.maxEntries; // Use config.maxEntries
 
     if (overflow > 0) {
       this.evictMultipleEntries(overflow);
     }
-    
+
     const now = Date.now();
     for (const [key, value, ttlSeconds] of entries) {
-      if (!key || typeof key !== 'string') continue;
-      
+      if (!key || typeof key !== "string") continue;
+
       // If the key exists, delete it to ensure it's moved to the end on re-insertion.
       if (this.store.has(key)) {
         this.store.delete(key);
       }
 
-      const expiresAt = ttlSeconds ? now + (ttlSeconds * 1000) : null;
+      const expiresAt = ttlSeconds ? now + ttlSeconds * 1000 : null;
       const entry: StoreEntry<T> = {
         value,
         expiresAt,
       };
-      
+
       this.store.set(key, entry);
     }
-    
+
     if (this.config.enableStats) {
       this.stats.totalEntries = this.store.size;
     }
@@ -153,12 +162,12 @@ export class MemoryStore implements Service {
    * Checks for and removes expired entries.
    */
   get<T>(key: string): T | undefined {
-    if (!key || typeof key !== 'string') {
+    if (!key || typeof key !== "string") {
       return undefined;
     }
 
     const entry = this.store.get(key) as StoreEntry<T> | undefined;
-    
+
     if (!entry) {
       return undefined;
     }
@@ -194,7 +203,7 @@ export class MemoryStore implements Service {
 
     for (const key of keys) {
       const entry = this.store.get(key) as StoreEntry<T> | undefined;
-      
+
       if (!entry) {
         results.set(key, undefined);
         continue;
@@ -222,10 +231,10 @@ export class MemoryStore implements Service {
 
     // Apply all LRU updates in one go (delete then re-insert to move to end)
     if (entriesToUpdate.length > 0) {
-        for (const [key, entry] of entriesToUpdate) {
-            this.store.delete(key);
-            this.store.set(key, entry);
-        }
+      for (const [key, entry] of entriesToUpdate) {
+        this.store.delete(key);
+        this.store.set(key, entry);
+      }
     }
 
     if (this.config.enableStats) {
@@ -239,7 +248,7 @@ export class MemoryStore implements Service {
    * Checks for and removes expired entries.
    */
   has(key: string): boolean {
-    if (!key || typeof key !== 'string') {
+    if (!key || typeof key !== "string") {
       return false;
     }
 
@@ -271,7 +280,7 @@ export class MemoryStore implements Service {
     const keysToDelete: string[] = [];
 
     for (const key of keys) {
-      if (!key || typeof key !== 'string') {
+      if (!key || typeof key !== "string") {
         results.set(key, false);
         continue;
       }
@@ -309,7 +318,7 @@ export class MemoryStore implements Service {
    * Deletes a key from the store.
    */
   delete(key: string): boolean {
-    if (!key || typeof key !== 'string') {
+    if (!key || typeof key !== "string") {
       return false;
     }
 
@@ -320,7 +329,7 @@ export class MemoryStore implements Service {
       }
       logger.debug(`Deleted key "${key}"`);
     }
-    
+
     return wasDeleted;
   }
 
@@ -329,20 +338,20 @@ export class MemoryStore implements Service {
    */
   deleteBulk(keys: string[]): number {
     let deletedCount = 0;
-    
+
     for (const key of keys) {
-      if (key && typeof key === 'string' && this.store.delete(key)) {
+      if (key && typeof key === "string" && this.store.delete(key)) {
         deletedCount++;
       }
     }
-    
+
     if (deletedCount > 0) {
       if (this.config.enableStats) {
         this.stats.totalEntries = this.store.size;
       }
       logger.debug(`Bulk deleted ${deletedCount} entries`);
     }
-    
+
     return deletedCount;
   }
 
@@ -352,7 +361,8 @@ export class MemoryStore implements Service {
   clear(): void {
     const size = this.store.size;
     this.store.clear();
-    if (this.config.enableStats) { // Only reset stats if enabled
+    if (this.config.enableStats) {
+      // Only reset stats if enabled
       this.resetStats();
     }
     logger.info(`Cleared all ${size} entries from memory store`);
@@ -439,11 +449,12 @@ export class MemoryStore implements Service {
    * Detailed memory usage is only calculated if enableDetailedMemoryStats is true.
    */
   getStats(): StoreStats {
-    if (this.config.enableDetailedMemoryStats) { // Use config property
+    if (this.config.enableDetailedMemoryStats) {
+      // Use config property
       this.updateDetailedStats();
     }
     // Return a copy to prevent external modification of internal stats object
-    return { ...this.stats }; 
+    return { ...this.stats };
   }
 
   /**
@@ -491,7 +502,9 @@ export class MemoryStore implements Service {
       this.cleanupExpiredEntries();
     }, this.config.cleanupInterval); // Use config property
 
-    logger.debug(`Started background cleanup process (interval: ${this.config.cleanupInterval}ms)`);
+    logger.debug(
+      `Started background cleanup process (interval: ${this.config.cleanupInterval}ms)`
+    );
   }
 
   /**
@@ -501,7 +514,7 @@ export class MemoryStore implements Service {
     if (this.cleanupInterval) {
       clearInterval(this.cleanupInterval);
       this.cleanupInterval = null;
-      logger.debug('Stopped background cleanup process');
+      logger.debug("Stopped background cleanup process");
     }
   }
 
@@ -511,20 +524,22 @@ export class MemoryStore implements Service {
    */
   private evictMultipleEntries(count: number): void {
     if (count <= 0) return;
-    
+
     const keysIterator = this.store.keys();
     const keysToDelete = [];
     for (let i = 0; i < count; i++) {
-        const next = keysIterator.next();
-        if (next.done) break;
-        keysToDelete.push(next.value);
+      const next = keysIterator.next();
+      if (next.done) break;
+      keysToDelete.push(next.value);
     }
 
     for (const key of keysToDelete) {
-        this.store.delete(key);
+      this.store.delete(key);
     }
 
-    logger.debug(`Evicted ${keysToDelete.length} oldest entries due to capacity limit`);
+    logger.debug(
+      `Evicted ${keysToDelete.length} oldest entries due to capacity limit`
+    );
   }
 
   /**
@@ -535,7 +550,9 @@ export class MemoryStore implements Service {
     const oldestKey = this.store.keys().next().value;
     if (oldestKey) {
       this.store.delete(oldestKey);
-      logger.debug(`Evicted oldest entry: "${oldestKey}" due to capacity limit`);
+      logger.debug(
+        `Evicted oldest entry: "${oldestKey}" due to capacity limit`
+      );
     }
   }
 
@@ -546,7 +563,7 @@ export class MemoryStore implements Service {
   private updateDetailedStats(): void {
     let totalSize = 0;
     for (const [key, entry] of this.store.entries()) {
-      totalSize += key.length; 
+      totalSize += key.length;
       totalSize += this.estimateSize(entry.value);
     }
     this.stats.totalMemoryUsage = totalSize;
@@ -557,20 +574,27 @@ export class MemoryStore implements Service {
    * This is a rough estimate and can be improved for specific data types.
    */
   private estimateSize(value: any): number {
-    if (value === null || value === undefined) return 4; 
-    
+    if (value === null || value === undefined) return 4;
+
     switch (typeof value) {
-      case 'string': return value.length * 2; // UTF-16 encoding
-      case 'number': return 8; // JavaScript numbers are 64-bit floats
-      case 'boolean': return 4; 
-      case 'object':
+      case "string":
+        return value.length * 2; // UTF-16 encoding
+      case "number":
+        return 8; // JavaScript numbers are 64-bit floats
+      case "boolean":
+        return 4;
+      case "object":
         if (Array.isArray(value)) {
           // Rough estimate: fixed overhead + size per element
-          return value.reduce((sum, item) => sum + this.estimateSize(item), 16); 
+          return value.reduce((sum, item) => sum + this.estimateSize(item), 16);
         }
         // Rough estimate for object: fixed overhead + sum of property key/value sizes.
-        return Object.keys(value).reduce((sum, key) => sum + key.length * 2 + this.estimateSize(value[key]), 32); 
-      default: return 50; // Default size for other types like functions, symbols etc.
+        return Object.keys(value).reduce(
+          (sum, key) => sum + key.length * 2 + this.estimateSize(value[key]),
+          32
+        );
+      default:
+        return 50; // Default size for other types like functions, symbols etc.
     }
   }
 
@@ -583,7 +607,7 @@ export class MemoryStore implements Service {
       expiredEntries: 0,
       totalMemoryUsage: 0,
       cleanupRuns: this.stats.cleanupRuns, // Preserve historical stats for long-running service
-      lastCleanup: this.stats.lastCleanup
+      lastCleanup: this.stats.lastCleanup,
     };
   }
 
@@ -594,6 +618,24 @@ export class MemoryStore implements Service {
     this.stopCleanupProcess();
     this.clear(); // Clear all data on shutdown
     logger.info(`${this.name} service shutdown complete`);
+  }
+
+  async getOrFetchUser(discordId: string, userRepo: any) {
+    let user = this.get(`user:${discordId}`);
+    if (!user) {
+      user = await userRepo.findByDiscordId(discordId);
+      if (user) this.set(`user:${discordId}`, user, 3600);
+    }
+    return user;
+  }
+
+  async setAndPersistUser(discordId: string, userData: any, userRepo: any) {
+    this.set(`user:${discordId}`, userData, 3600);
+    return userRepo.updateByDiscordId(discordId, userData);
+  }
+
+  deleteUserCache(discordId: string) {
+    this.delete(`user:${discordId}`);
   }
 }
 
