@@ -10,6 +10,7 @@ export interface CommandMeta {
   permissions?: (keyof typeof PermissionFlagsBits)[] | keyof typeof PermissionFlagsBits;
   cooldown?: number;
   aliases?: string[];
+  guildOnly?: boolean;
   // Add more metadata fields as needed (e.g., options, permissions)
 }
 

@@ -27,7 +27,8 @@ export const codeEditorCommand: Command = {
     description: "Manage bot codebase through Discord",
     category: "development",
     permissions: ["Administrator"],
-    cooldown: 5
+    cooldown: 5,
+    guildOnly: false
   },
   data: new SlashCommandBuilder()
     .setName("code")

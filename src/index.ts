@@ -20,6 +20,32 @@ export const client = new Client({
 
 client.commands = new Collection();
 
+async function syncCommandsOnStartup() {
+  const commands = client.commands;
+  if (!commands || commands.size === 0) {
+    console.warn("No commands loaded to sync.");
+    return;
+  }
+
+  // Split commands into global and guild-only
+  const globalCommands = Array.from(commands.values()).filter(cmd => !cmd.meta.guildOnly);
+  const guildCommands = Array.from(commands.values()).filter(cmd => cmd.meta.guildOnly);
+
+  // Register global commands
+  if (globalCommands.length > 0) {
+    await client.application?.commands.set(globalCommands.map(cmd => cmd.data.toJSON()));
+    console.log(`Synced ${globalCommands.length} global commands.`);
+  }
+
+  // Register guild-only commands for each guild
+  if (guildCommands.length > 0) {
+    for (const guild of client.guilds.cache.values()) {
+      await guild.commands.set(guildCommands.map(cmd => cmd.data.toJSON()));
+      console.log(`Synced ${guildCommands.length} guild-only commands for guild ${guild.name} (${guild.id})`);
+    }
+  }
+}
+
 async function main() {
   try {
     // Load commands and events
@@ -63,6 +89,16 @@ async function main() {
 
     // Login
     await client.login(config.discordToken);
+
+    // Auto-sync commands after login and ready
+    client.once("ready", async () => {
+      try {
+        await syncCommandsOnStartup();
+        console.log("Command sync complete.");
+      } catch (err) {
+        console.error("Failed to sync commands on startup:", err);
+      }
+    });
   } catch (error) {
     console.error("Fatal error during bot startup:", error);
     process.exit(1);

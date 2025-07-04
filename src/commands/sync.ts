@@ -18,7 +18,9 @@ const command: Command = {
     permissions: ["Administrator"],
     usage: "/sync [global]",
     examples: ["/sync", "/sync global", "gov!sync", "gov!sync global"],
-    cooldown: 10
+    cooldown: 10,
+    guildOnly: false
+
   },
   data: new SlashCommandBuilder()
     .setName("sync")
@@ -69,10 +71,15 @@ const command: Command = {
     }
 
     let syncedCount = 0;
+    const commands = (interactionOrMessage.client as MyCustomClient).commands;
+    const globalCommands = Array.from(commands.values()).filter(cmd => !cmd.meta.guildOnly);
+    const guildCommands = Array.from(commands.values()).filter(cmd => cmd.meta.guildOnly);
+
+    console.log("Global commands to register:", globalCommands.map(cmd => cmd.meta.name));
+
     if (scope === "guild" && guild) {
-      // Sync to current guild
-      const commands = (interactionOrMessage.client as MyCustomClient).commands;
-      const data = Array.from(commands.values()).map(cmd => (cmd as Command).data.toJSON());
+      // Register only guild-only commands for this guild
+      const data = guildCommands.map(cmd => cmd.data.toJSON());
       await guild.commands.set(data);
       syncedCount = data.length;
       await interactionOrMessage.reply({
@@ -80,9 +87,8 @@ const command: Command = {
         ephemeral: true
       });
     } else if (scope === "global") {
-      // Sync globally
-      const commands = (interactionOrMessage.client as MyCustomClient).commands;
-      const data = Array.from(commands.values()).map(cmd => (cmd as Command).data.toJSON());
+      // Register only global commands
+      const data = globalCommands.map(cmd => cmd.data.toJSON());
       await interactionOrMessage.client.application?.commands.set(data);
       syncedCount = data.length;
       await interactionOrMessage.reply({

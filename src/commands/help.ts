@@ -28,17 +28,13 @@ interface ExtendedClient extends Client {
   commands: Collection<string, Command>;
 }
 
-// Create client instance with required intents
-export const client = new Client({ 
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages] 
-}) as ExtendedClient;
-client.commands = new Collection();
-
 const command: Command = {
   meta: {
     name: "help",
     description: "Get help with bot commands",
-    category: "Utility"
+    category: "Utility",
+    guildOnly: false
+
   },
   data: new SlashCommandBuilder()
     .setName("help")
@@ -150,25 +146,22 @@ async function showCategoryPage(
 }
 
 // Get commands organized by category
-function getCommandsByCategory(): { [key: string]: Command[] } {
+function getCommandsByCategory(client: ExtendedClient): { [key: string]: Command[] } {
   const categories: { [key: string]: Command[] } = {};
-  const botClient = client as ExtendedClient;
-
-  // Get all commands from the client's commands Collection
-  if (botClient.commands) {
-    botClient.commands.forEach((cmd: Command) => {
+  if (client.commands) {
+    client.commands.forEach((cmd: Command) => {
       const category = cmd.meta?.category || "General";
       if (!categories[category]) categories[category] = [];
       categories[category].push(cmd);
     });
   }
-
   return categories;
 }
 
 // Send general help (all commands organized by category)
 async function sendGeneralHelp(target: ChatInputCommandInteraction | Message) {
-  const categories = getCommandsByCategory();
+  const client = target.client as ExtendedClient;
+  const categories = getCommandsByCategory(client);
   const categoryNames = Object.keys(categories);
 
   if (categoryNames.length === 0) {
@@ -342,13 +335,13 @@ async function sendGeneralHelp(target: ChatInputCommandInteraction | Message) {
 }
 
 // Helper to get the commands map from the client, with proper typing
-function getCommandsCollection() {
-  const botClient = client as ExtendedClient;
-  return botClient.commands;
+function getCommandsCollection(client: ExtendedClient) {
+  return client.commands;
 }
 
 async function sendSpecificCommandHelp(target: ChatInputCommandInteraction | Message, commandName: string) {
-  const commandsCollection = getCommandsCollection();
+  const client = target.client as ExtendedClient;
+  const commandsCollection = getCommandsCollection(client);
   const command = commandsCollection?.get(commandName);
 
   if (!command) {

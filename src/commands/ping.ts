@@ -10,7 +10,9 @@ const command: Command = {
   meta: {
     name: "ping",
     description: "Replies with Pong and latency info!",
-    category: "Utility"
+    category: "Utility",
+    guildOnly: false
+
   },
   data: new SlashCommandBuilder()
     .setName("ping")
