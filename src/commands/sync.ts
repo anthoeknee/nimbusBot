@@ -33,17 +33,17 @@ const command: Command = {
         .setRequired(false)
         .addChoices(
           { name: "Guild Only", value: "guild" },
-          { name: "Global", value: "global" }
-        )
+          { name: "Global", value: "global" },
+        ),
     )
     .setDefaultMemberPermissions(
-      PermissionFlagsBits.Administrator
+      PermissionFlagsBits.Administrator,
     ) as SlashCommandBuilder,
 
   execute: commandErrorHandler(
     async (
       interactionOrMessage: ChatInputCommandInteraction | Message,
-      context?: { args?: string[] }
+      context?: { args?: string[] },
     ) => {
       // Use permissions middleware for permission check (supports owner bypass)
       permissions(["Administrator"])(interactionOrMessage);
@@ -74,8 +74,8 @@ const command: Command = {
         "user" in interactionOrMessage && interactionOrMessage.user
           ? interactionOrMessage.user.id
           : "author" in interactionOrMessage && interactionOrMessage.author
-          ? interactionOrMessage.author.id
-          : undefined;
+            ? interactionOrMessage.author.id
+            : undefined;
       if (isDM && userId && userId === process.env.BOT_OWNER_ID) {
         scope = "global";
       } else {
@@ -88,7 +88,7 @@ const command: Command = {
           // For prefix commands
           guild =
             interactionOrMessage.client.guilds.cache.get(
-              interactionOrMessage.guildId
+              interactionOrMessage.guildId,
             ) || null;
         }
       }
@@ -107,15 +107,15 @@ const command: Command = {
       let syncedCount = 0;
       const commands = (interactionOrMessage.client as MyCustomClient).commands;
       const globalCommands = Array.from(commands.values()).filter(
-        (cmd) => !cmd.meta.guildOnly
+        (cmd) => !cmd.meta.guildOnly,
       );
       const guildCommands = Array.from(commands.values()).filter(
-        (cmd) => cmd.meta.guildOnly
+        (cmd) => cmd.meta.guildOnly,
       );
 
       console.log(
         "Global commands to register:",
-        globalCommands.map((cmd) => cmd.meta.name)
+        globalCommands.map((cmd) => cmd.meta.name),
       );
 
       if (scope === "guild" && guild) {
@@ -152,7 +152,7 @@ const command: Command = {
         throw new Error("Could not determine where to sync commands.");
       }
     },
-    "sync"
+    "sync",
   ),
 };
 

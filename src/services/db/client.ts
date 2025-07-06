@@ -80,7 +80,7 @@ export function sql(strings: TemplateStringsArray, ...values: any[]) {
 // Enhanced query builder using Bun's SQL features
 export function buildQuery(
   template: ReturnType<typeof sql>,
-  params: any[] = []
+  params: any[] = [],
 ) {
   let query = template.strings[0];
   for (let i = 0; i < template.values.length; i++) {

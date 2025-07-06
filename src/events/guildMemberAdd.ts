@@ -19,13 +19,13 @@ const event: Event<"guildMemberAdd"> = {
     const config = await settings.getSettingValue<VerificationConfig>(
       VERIFY_SETTING_KEY,
       undefined,
-      guildRow.id
+      guildRow.id,
     );
     if (!config || !config.enabled) return;
 
     // Remove all roles except @everyone
     const rolesToRemove = member.roles.cache.filter(
-      (r) => r.id !== member.guild.id
+      (r) => r.id !== member.guild.id,
     );
     if (rolesToRemove.size > 0) {
       try {
@@ -37,7 +37,7 @@ const event: Event<"guildMemberAdd"> = {
     // Optionally DM the user
     await sendDM(
       member.user,
-      `Welcome to ${member.guild.name}! Please verify yourself in <#${config.channelId}> by reacting to the verification message.`
+      `Welcome to ${member.guild.name}! Please verify yourself in <#${config.channelId}> by reacting to the verification message.`,
     );
   },
 };

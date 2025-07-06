@@ -26,7 +26,7 @@ import { ConversationMessage } from "../../types/ai";
  */
 export async function resolveDiscordMentionsAndUrls(
   content: string,
-  client: Client
+  client: Client,
 ): Promise<string> {
   // Collect all matches first (since .replace with async is tricky)
   const userMentionRegex = /<@!?(\d+)>/g;
@@ -37,7 +37,7 @@ export async function resolveDiscordMentionsAndUrls(
 
   // User mentions
   const userIds = Array.from(content.matchAll(userMentionRegex)).map(
-    (m) => m[1]
+    (m) => m[1],
   );
   const userMap: Record<string, string> = {};
   for (const userId of userIds) {
@@ -53,7 +53,7 @@ export async function resolveDiscordMentionsAndUrls(
 
   // Channel mentions
   const channelIds = Array.from(content.matchAll(channelMentionRegex)).map(
-    (m) => m[1]
+    (m) => m[1],
   );
   const channelMap: Record<string, string> = {};
   for (const channelId of channelIds) {
@@ -78,9 +78,8 @@ export async function resolveDiscordMentionsAndUrls(
       const channel = await client.channels.fetch(channelId);
       // @ts-ignore
       const message = await channel.messages.fetch(messageId);
-      messageUrlMap[
-        key
-      ] = `[Message by @${message.author.username}: "${message.content}"]`;
+      messageUrlMap[key] =
+        `[Message by @${message.author.username}: "${message.content}"]`;
     } catch {
       messageUrlMap[key] = full;
     }
@@ -90,15 +89,15 @@ export async function resolveDiscordMentionsAndUrls(
   let processed = content;
   processed = processed.replace(
     userMentionRegex,
-    (_, userId) => userMap[userId] || `<@${userId}>`
+    (_, userId) => userMap[userId] || `<@${userId}>`,
   );
   processed = processed.replace(
     channelMentionRegex,
-    (_, channelId) => channelMap[channelId] || `<#${channelId}>`
+    (_, channelId) => channelMap[channelId] || `<#${channelId}>`,
   );
   processed = processed.replace(
     messageUrlRegex,
-    (full) => messageUrlMap[full] || full
+    (full) => messageUrlMap[full] || full,
   );
 
   // TODO: Role mentions, server/channel URLs, etc.
@@ -121,15 +120,15 @@ export async function fetchShortTermMemoryHistory(
   channel: TextBasedChannel,
   botUserId: string,
   client: Client,
-  commandPrefix: string = "g!"
+  commandPrefix: string = "g!",
 ): Promise<ConversationMessage[]> {
   console.log(
-    `[fetchShortTermMemoryHistory] Channel type: ${channel.type}, Channel ID: ${channel.id}`
+    `[fetchShortTermMemoryHistory] Channel type: ${channel.type}, Channel ID: ${channel.id}`,
   );
   // Fetch more than 35 to allow for filtering
   const fetched = await channel.messages.fetch({ limit: 50 });
   const messages = Array.from(fetched.values()).sort(
-    (a, b) => a.createdTimestamp - b.createdTimestamp
+    (a, b) => a.createdTimestamp - b.createdTimestamp,
   ); // oldest to newest
 
   // Determine channel type
@@ -198,7 +197,7 @@ export async function fetchShortTermMemoryHistory(
   filtered = filtered.slice(-35);
 
   console.log(
-    `[fetchShortTermMemoryHistory] Fetched ${messages.length} messages, filtered to ${filtered.length}`
+    `[fetchShortTermMemoryHistory] Fetched ${messages.length} messages, filtered to ${filtered.length}`,
   );
 
   // Map to ConversationMessage

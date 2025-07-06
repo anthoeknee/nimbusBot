@@ -54,11 +54,11 @@ export function checkPermissions(requiredPerms: string[]) {
 export function permissions(requiredPerms: string[]) {
   return (
     interactionOrMessage: CommandInteraction | Message,
-    onFail?: (reason: string) => void
+    onFail?: (reason: string) => void,
   ): boolean => {
     if (!checkPermissions(requiredPerms)(interactionOrMessage)) {
       const error = new Error(
-        "You do not have permission to use this command."
+        "You do not have permission to use this command.",
       );
       error.name = "PermissionDenied";
       if (onFail) onFail(error.message);

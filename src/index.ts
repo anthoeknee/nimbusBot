@@ -1,22 +1,17 @@
-import {
-  Client,
-  Collection,
-  GatewayIntentBits,
-  ChatInputCommandInteraction,
-  Message,
-  MessageFlags,
-  Partials,
-} from "discord.js";
+import { Client, Collection, GatewayIntentBits, Partials } from "discord.js";
 import { config } from "./config";
 import { loadCommands, loadEvents } from "./utils/loader";
 import { database } from "./services/db";
+import { initializeMemorySystem } from "./services/ai/memory";
 import { Command } from "./types/command";
 import { serviceErrorHandler } from "./middleware/errorHandler";
+import { logger } from "./utils/logger";
+import { logMemorySystemStatus } from "./utils/validateMemorySystem";
 
 export interface ExtendedClient extends Client {
   commands: Collection<string, Command>;
 }
-// testing
+
 export const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -46,16 +41,16 @@ async function syncCommandsOnStartup() {
 
   // Split commands into global and guild-only
   const globalCommands = Array.from(commands.values()).filter(
-    (cmd) => !cmd.meta.guildOnly
+    (cmd) => !cmd.meta.guildOnly,
   );
   const guildCommands = Array.from(commands.values()).filter(
-    (cmd) => cmd.meta.guildOnly
+    (cmd) => cmd.meta.guildOnly,
   );
 
   // Register global commands
   if (globalCommands.length > 0) {
     await client.application?.commands.set(
-      globalCommands.map((cmd) => cmd.data.toJSON())
+      globalCommands.map((cmd) => cmd.data.toJSON()),
     );
     console.log(`Synced ${globalCommands.length} global commands.`);
   }
@@ -65,7 +60,7 @@ async function syncCommandsOnStartup() {
     for (const guild of client.guilds.cache.values()) {
       await guild.commands.set(guildCommands.map((cmd) => cmd.data.toJSON()));
       console.log(
-        `Synced ${guildCommands.length} guild-only commands for guild ${guild.name} (${guild.id})`
+        `Synced ${guildCommands.length} guild-only commands for guild ${guild.name} (${guild.id})`,
       );
     }
   }
@@ -73,65 +68,63 @@ async function syncCommandsOnStartup() {
 
 async function main() {
   try {
+    logger.info("Starting bot initialization...");
+
     // Load commands and events
     const commands = await loadCommands();
     const events = await loadEvents();
 
-    // List loaded commands
-    console.log("Loaded commands:");
-    for (const [name] of commands) {
-      console.log(`- ${name}`);
-    }
+    // Attach commands to client
+    client.commands = commands;
 
-    // List loaded events
-    console.log("Loaded events:");
-    for (const event of events) {
-      console.log(`- ${event.name}`);
-    }
-
-    // Attach commands to client for easy access
-    (client as any).commands = commands;
-
-    // Register events with enhanced error handling
+    // Register events with error handling
     for (const event of events) {
       if (event.once) {
         client.once(
           event.name,
-          serviceErrorHandler((...args) => event.execute(...args), event.name)
+          serviceErrorHandler((...args) => event.execute(...args), event.name),
         );
       } else {
         client.on(
           event.name,
-          serviceErrorHandler((...args) => event.execute(...args), event.name)
+          serviceErrorHandler((...args) => event.execute(...args), event.name),
         );
       }
     }
 
-    // Initialize and synchronize the database with enhanced error handling
+    // Initialize database
     await serviceErrorHandler(async () => {
-      // Prisma does not require sync like Sequelize.
-      // Optionally, you can do a test query to ensure connection:
-      await database.users.count(); // Test connection
-      console.log("Database connection successful.");
+      database.initialize();
+      await database.healthCheck();
+      logger.info("Database initialized successfully");
     }, "database")();
 
-    // Initialize database
-    database.initialize();
+    // Initialize enhanced memory system
+    await serviceErrorHandler(async () => {
+      const { db } = await import("./services/db/client");
+      await initializeMemorySystem(db);
+      logger.info("Enhanced memory system initialized successfully");
+    }, "memory-system")();
 
-    // Login
+    // Validate memory system
+    await serviceErrorHandler(async () => {
+      await logMemorySystemStatus();
+    }, "memory-validation")();
+
+    // Login to Discord
     await client.login(config.discordToken);
 
-    // Auto-sync commands after login and ready
+    // Auto-sync commands after ready
     client.once("ready", async () => {
       try {
         await syncCommandsOnStartup();
-        console.log("Command sync complete.");
+        logger.info("Bot startup complete!");
       } catch (err) {
-        console.error("Failed to sync commands on startup:", err);
+        logger.error("Failed to sync commands on startup:", err);
       }
     });
   } catch (error) {
-    console.error("Fatal error during bot startup:", error);
+    logger.error("Fatal error during bot startup:", error);
     process.exit(1);
   }
 }

@@ -1,83 +1,112 @@
 import { Command } from "../types/command";
-import { ChatInputCommandInteraction, SlashCommandBuilder, Client, EmbedBuilder, Message } from "discord.js";
+import {
+  ChatInputCommandInteraction,
+  SlashCommandBuilder,
+  EmbedBuilder,
+  Message,
+} from "discord.js";
 import { logger } from "../utils/logger";
 import { commandErrorHandler } from "../middleware/errorHandler";
 
 // Use Bun's performance.now() if available, otherwise fallback to Date.now()
-const now = () => (typeof Bun !== "undefined" && Bun?.nanoseconds ? Bun.nanoseconds() / 1e6 : Date.now());
+const now = () =>
+  typeof Bun !== "undefined" && Bun?.nanoseconds
+    ? Bun.nanoseconds() / 1e6
+    : Date.now();
 
-const command: Command = {
+export const command: Command = {
   meta: {
     name: "ping",
     description: "Replies with Pong and latency info!",
     category: "Utility",
-    guildOnly: false
-
+    guildOnly: false,
   },
   data: new SlashCommandBuilder()
     .setName("ping")
-    .setDescription("Replies with Pong and latency info!") as SlashCommandBuilder,
-  execute: commandErrorHandler(async (interactionOrMessage: ChatInputCommandInteraction | Message) => {
-    // If it's a slash command
-    if ("isChatInputCommand" in interactionOrMessage && interactionOrMessage.isChatInputCommand()) {
-      const interaction = interactionOrMessage;
-      const startTime = Date.now();
+    .setDescription(
+      "Replies with Pong and latency info!",
+    ) as SlashCommandBuilder,
+  execute: commandErrorHandler(
+    async (interactionOrMessage: ChatInputCommandInteraction | Message) => {
+      // If it's a slash command
+      if (
+        "isChatInputCommand" in interactionOrMessage &&
+        interactionOrMessage.isChatInputCommand()
+      ) {
+        const interaction = interactionOrMessage;
+        const startTime = Date.now();
 
-      const userId = interaction.user?.id ?? "unknown";
+        const userId = interaction.user?.id ?? "unknown";
 
-      logger.info(`Ping command initiated by user ${userId}`);
+        logger.info(`Ping command initiated by user ${userId}`);
 
-      // Get WebSocket ping - show "N/A" if -1
-      const wsPing = interaction.client.ws.ping;
-      const wsPingDisplay = wsPing === -1 ? "N/A" : `${Math.round(wsPing)}ms`;
+        // Get WebSocket ping - show "N/A" if -1
+        const wsPing = interaction.client.ws.ping;
+        const wsPingDisplay = wsPing === -1 ? "N/A" : `${Math.round(wsPing)}ms`;
 
-      logger.debug(`WebSocket ping: ${wsPingDisplay}`);
+        logger.debug(`WebSocket ping: ${wsPingDisplay}`);
 
-      // Helper to build the embed
-      const buildEmbed = (apiLatency?: number, messageLatency?: number) =>
-        new EmbedBuilder()
-          .setTitle("🏓 Pong!")
-          .setColor(0x00ff99)
-          .addFields(
-            { name: "WebSocket Ping", value: wsPingDisplay, inline: true },
-            ...(apiLatency !== undefined
-              ? [{ name: "API Latency", value: `${apiLatency}ms`, inline: true }]
-              : []),
-            ...(messageLatency !== undefined
-              ? [{ name: "Message Latency", value: `${messageLatency}ms`, inline: true }]
-              : [])
-          )
-          .setTimestamp();
+        // Helper to build the embed
+        const buildEmbed = (apiLatency?: number, messageLatency?: number) =>
+          new EmbedBuilder()
+            .setTitle("🏓 Pong!")
+            .setColor(0x00ff99)
+            .addFields(
+              { name: "WebSocket Ping", value: wsPingDisplay, inline: true },
+              ...(apiLatency !== undefined
+                ? [
+                    {
+                      name: "API Latency",
+                      value: `${apiLatency}ms`,
+                      inline: true,
+                    },
+                  ]
+                : []),
+              ...(messageLatency !== undefined
+                ? [
+                    {
+                      name: "Message Latency",
+                      value: `${messageLatency}ms`,
+                      inline: true,
+                    },
+                  ]
+                : []),
+            )
+            .setTimestamp();
 
-      logger.debug(`Processing slash command ping for user ${userId}`);
+        logger.debug(`Processing slash command ping for user ${userId}`);
 
-      const apiStart = now();
+        const apiStart = now();
 
-      // Defer reply to prevent timeout
-      await interaction.deferReply();
+        // Defer reply to prevent timeout
+        await interaction.deferReply();
 
-      const sent = await interaction.editReply({
-        embeds: [buildEmbed()]
-      });
+        const sent = await interaction.editReply({
+          embeds: [buildEmbed()],
+        });
 
-      const apiLatency = Math.round(now() - apiStart);
-      // @ts-ignore
-      const messageLatency = sent.createdTimestamp - interaction.createdTimestamp;
+        const apiLatency = Math.round(now() - apiStart);
+        // @ts-ignore
+        const messageLatency =
+          sent.createdTimestamp - interaction.createdTimestamp;
 
-      await interaction.editReply({
-        embeds: [buildEmbed(apiLatency, messageLatency)]
-      });
+        await interaction.editReply({
+          embeds: [buildEmbed(apiLatency, messageLatency)],
+        });
 
-      logger.info(`Ping command completed for user ${userId} - API: ${apiLatency}ms, Message: ${messageLatency}ms`);
+        logger.info(
+          `Ping command completed for user ${userId} - API: ${apiLatency}ms, Message: ${messageLatency}ms`,
+        );
 
-      const totalTime = Date.now() - startTime;
-      logger.debug(`Total ping command execution time: ${totalTime}ms`);
-
-    } else if ("reply" in interactionOrMessage) {
-      // Fallback for prefix/message command
-      await interactionOrMessage.reply("🏓 Pong!");
-    }
-  }, "ping"),
+        const totalTime = Date.now() - startTime;
+        logger.debug(`Total ping command execution time: ${totalTime}ms`);
+      } else if ("reply" in interactionOrMessage) {
+        // Fallback for prefix/message command
+        await interactionOrMessage.reply("🏓 Pong!");
+      }
+    },
+    "ping",
+  ),
 };
 
 export default command;

@@ -44,7 +44,7 @@ export class GroqProvider
         // Concatenate all text fields, ignore non-text
         content = content
           .filter(
-            (part) => part.type === "text" && typeof part.text === "string"
+            (part) => part.type === "text" && typeof part.text === "string",
           )
           .map((part) => part.text)
           .join("\n");
@@ -55,11 +55,11 @@ export class GroqProvider
       model: request.model,
       messages: patchedMessages,
       temperature: request.temperature,
-      max_tokens: request.maxTokens,
-      stream: request.stream,
     };
-    if (request.tools) body.tools = request.tools;
-    if (request.tool_choice) body.tool_choice = request.tool_choice;
+    if (request.maxTokens !== undefined) body.max_tokens = request.maxTokens;
+    if (request.stream !== undefined) body.stream = request.stream;
+    // if (request.tools) body.tools = request.tools; // Groq API does not support tools/plugins
+    // if (request.tool_choice) body.tool_choice = request.tool_choice; // Groq API does not support tool_choice
 
     const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
@@ -71,7 +71,7 @@ export class GroqProvider
   }
 
   async speechToText(
-    request: AISpeechToTextRequest
+    request: AISpeechToTextRequest,
   ): Promise<AISpeechToTextResponse> {
     const form = new FormData();
     let audioData: BlobPart;
@@ -101,7 +101,7 @@ export class GroqProvider
         method: "POST",
         headers: this.getHeaders(false),
         body: form,
-      }
+      },
     );
     if (!res.ok)
       throw new Error(`Groq speech-to-text error: ${res.statusText}`);
@@ -110,7 +110,7 @@ export class GroqProvider
   }
 
   async textToSpeech(
-    request: AITextToSpeechRequest
+    request: AITextToSpeechRequest,
   ): Promise<AITextToSpeechResponse> {
     // Groq TTS endpoint: https://api.groq.com/openai/v1/audio/speech
     const url = "https://api.groq.com/openai/v1/audio/speech";

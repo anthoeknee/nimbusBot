@@ -40,7 +40,7 @@ const event: Event<"interactionCreate"> = {
     await withExecutionLock(lockKey, async () => {
       try {
         logger.info(
-          `Interaction received: ${interaction.commandName} from user ${interaction.user.tag} (${interaction.user.id})`
+          `Interaction received: ${interaction.commandName} from user ${interaction.user.tag} (${interaction.user.id})`,
         );
 
         // @ts-ignore
@@ -49,7 +49,7 @@ const event: Event<"interactionCreate"> = {
 
         if (!command) {
           throw new Error(
-            `No command matching ${interaction.commandName} was found.`
+            `No command matching ${interaction.commandName} was found.`,
           );
         }
 
@@ -63,7 +63,7 @@ const event: Event<"interactionCreate"> = {
             interaction,
             (reason) => {
               throw new Error(reason);
-            }
+            },
           );
 
           if (!hasPermission) {
@@ -72,7 +72,7 @@ const event: Event<"interactionCreate"> = {
         }
 
         logger.debug(
-          `Executing command: ${interaction.commandName} for user ${interaction.user.tag}`
+          `Executing command: ${interaction.commandName} for user ${interaction.user.tag}`,
         );
 
         // Execute command with enhanced error handling
@@ -81,8 +81,8 @@ const event: Event<"interactionCreate"> = {
           const timeoutPromise = new Promise((_, reject) =>
             setTimeout(
               () => reject(new Error("Command execution timeout")),
-              30000
-            )
+              30000,
+            ),
           );
 
           await Promise.race([commandPromise, timeoutPromise]);
@@ -90,13 +90,13 @@ const event: Event<"interactionCreate"> = {
 
         const executionTime = Date.now() - startTime;
         logger.info(
-          `Command ${interaction.commandName} completed successfully in ${executionTime}ms`
+          `Command ${interaction.commandName} completed successfully in ${executionTime}ms`,
         );
       } catch (error) {
         const executionTime = Date.now() - startTime;
         logger.error(
           `Error executing command ${interaction.commandName} for user ${interaction.user.tag}:`,
-          error
+          error,
         );
         logger.error(`Command execution time: ${executionTime}ms`);
 

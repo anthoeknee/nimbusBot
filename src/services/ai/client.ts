@@ -45,7 +45,7 @@ export class AIClient {
    * @throws Error on provider errors or infinite tool loop
    */
   static async chat(
-    request: AIChatRequest
+    request: AIChatRequest,
   ): Promise<AIChatResponse & { toolResults?: any[] }> {
     const provider = AIClient.getProvider(request.provider);
     const tools = getOpenAIFunctions();
@@ -92,7 +92,7 @@ export class AIClient {
           result = await executeTool(
             call.name,
             call.arguments,
-            request.toolContext || {}
+            request.toolContext || {},
           );
         } catch (err) {
           result = {
@@ -132,7 +132,7 @@ export class AIClient {
     const provider = AIClient.getProvider(request.provider);
     if (!provider.embeddings)
       throw new Error(
-        `Embeddings not supported for provider "${request.provider}"`
+        `Embeddings not supported for provider "${request.provider}"`,
       );
     return provider.embeddings(request);
   }

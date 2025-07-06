@@ -22,7 +22,7 @@ const event: Event<"messageReactionAdd"> = {
       reaction.emoji.name,
       reaction.emoji.id,
       reaction.message.id,
-      user.id
+      user.id,
     );
 
     try {
@@ -51,7 +51,7 @@ const event: Event<"messageReactionAdd"> = {
       const config = await settings.getSettingValue<VerificationConfig>(
         VERIFY_SETTING_KEY,
         undefined,
-        guildRow.id
+        guildRow.id,
       );
       if (!config || !config.enabled) return;
       if (reaction.message.id !== config.messageId) return;
@@ -61,7 +61,7 @@ const event: Event<"messageReactionAdd"> = {
       const matchEmoji = (
         emojiObj: typeof emoji,
         configName: string,
-        configId?: string
+        configId?: string,
       ) => {
         if (configId) {
           return emojiObj.id === configId;
@@ -72,12 +72,12 @@ const event: Event<"messageReactionAdd"> = {
       const isAccept = matchEmoji(
         emoji,
         config.acceptEmoji,
-        (config as any).acceptEmojiId
+        (config as any).acceptEmojiId,
       );
       const isReject = matchEmoji(
         emoji,
         config.rejectEmoji,
-        (config as any).rejectEmojiId
+        (config as any).rejectEmojiId,
       );
       logger.info("Emoji match results:", { isAccept, isReject });
       if (!isAccept && !isReject) return;
@@ -106,7 +106,7 @@ const event: Event<"messageReactionAdd"> = {
       if (isAccept) {
         // Check bot permissions
         const canManageRoles = botMember.permissions.has(
-          PermissionsBitField.Flags.ManageRoles
+          PermissionsBitField.Flags.ManageRoles,
         );
         const botHighest = botMember.roles.highest.position;
         const targetRolePos = targetRole.position;
@@ -122,14 +122,14 @@ const event: Event<"messageReactionAdd"> = {
           if (channel?.isTextBased()) {
             try {
               await channel.send(
-                `❌ I don't have permission to assign the verification role. Please check my permissions and role position.`
+                `❌ I don't have permission to assign the verification role. Please check my permissions and role position.`,
               );
             } catch {}
           }
           // Optionally DM user
           await sendDM(
             user,
-            `❌ Sorry, I couldn't assign you the verification role in **${guild.name}** due to missing permissions. Please contact a server admin.`
+            `❌ Sorry, I couldn't assign you the verification role in **${guild.name}** due to missing permissions. Please contact a server admin.`,
           );
           return;
         }
@@ -140,7 +140,7 @@ const event: Event<"messageReactionAdd"> = {
           // Optionally DM user
           await sendDM(
             user,
-            `✅ You have been verified and given access in **${guild.name}**! Welcome!`
+            `✅ You have been verified and given access in **${guild.name}**! Welcome!`,
           );
         } catch (err) {
           logger.error(`Failed to add role:`, err);
@@ -149,14 +149,14 @@ const event: Event<"messageReactionAdd"> = {
           if (channel?.isTextBased()) {
             try {
               await channel.send(
-                `❌ Failed to assign role to <@${user.id}>. Please check bot permissions.`
+                `❌ Failed to assign role to <@${user.id}>. Please check bot permissions.`,
               );
             } catch {}
           }
           // Optionally DM user
           await sendDM(
             user,
-            `❌ Sorry, I couldn't assign you the verification role in **${guild.name}**. Please contact a server admin.`
+            `❌ Sorry, I couldn't assign you the verification role in **${guild.name}**. Please contact a server admin.`,
           );
         }
       }
@@ -165,7 +165,7 @@ const event: Event<"messageReactionAdd"> = {
         if (config.kickOnReject) {
           // Check bot permissions
           const canKick = botMember.permissions.has(
-            PermissionsBitField.Flags.KickMembers
+            PermissionsBitField.Flags.KickMembers,
           );
           const botHighest = botMember.roles.highest.position;
           const memberHighest = member.roles.highest.position;
@@ -181,14 +181,14 @@ const event: Event<"messageReactionAdd"> = {
             if (channel?.isTextBased()) {
               try {
                 await channel.send(
-                  `❌ I don't have permission to kick <@${user.id}>. Please check my permissions and role position.`
+                  `❌ I don't have permission to kick <@${user.id}>. Please check my permissions and role position.`,
                 );
               } catch {}
             }
             // Optionally DM user
             await sendDM(
               user,
-              `❌ You were not verified in **${guild.name}**, but I couldn't remove you due to missing permissions. Please contact a server admin.`
+              `❌ You were not verified in **${guild.name}**, but I couldn't remove you due to missing permissions. Please contact a server admin.`,
             );
             return;
           }
@@ -199,7 +199,7 @@ const event: Event<"messageReactionAdd"> = {
             // Optionally DM user (may not deliver if kicked)
             await sendDM(
               user,
-              `❌ You have been removed from **${guild.name}** for rejecting verification. If this was a mistake, you may rejoin and try again.`
+              `❌ You have been removed from **${guild.name}** for rejecting verification. If this was a mistake, you may rejoin and try again.`,
             );
           } catch (err) {
             logger.error(`Failed to kick user:`, err);
@@ -208,24 +208,24 @@ const event: Event<"messageReactionAdd"> = {
             if (channel?.isTextBased()) {
               try {
                 await channel.send(
-                  `❌ Failed to kick <@${user.id}>. Please check bot permissions.`
+                  `❌ Failed to kick <@${user.id}>. Please check bot permissions.`,
                 );
               } catch {}
             }
             // Optionally DM user
             await sendDM(
               user,
-              `❌ I tried to remove you from **${guild.name}** for rejecting verification, but something went wrong. Please contact a server admin.`
+              `❌ I tried to remove you from **${guild.name}** for rejecting verification, but something went wrong. Please contact a server admin.`,
             );
           }
         } else {
           logger.info(
-            `User ${user.id} rejected verification but kick is disabled`
+            `User ${user.id} rejected verification but kick is disabled`,
           );
           // Optionally DM user
           await sendDM(
             user,
-            `❌ You rejected verification in **${guild.name}**. If this was a mistake, you may try again or contact a server admin.`
+            `❌ You rejected verification in **${guild.name}**. If this was a mistake, you may try again or contact a server admin.`,
           );
         }
       }

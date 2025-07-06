@@ -7,6 +7,7 @@ import {
   Message,
   GuildMember,
   Role,
+  MessageFlags,
 } from "discord.js";
 import { Command } from "../types/command";
 import { commandErrorHandler } from "../middleware/errorHandler";
@@ -43,48 +44,48 @@ export const command: Command = {
           opt
             .setName("channel")
             .setDescription("Verification channel")
-            .setRequired(true)
+            .setRequired(true),
         )
         .addRoleOption((opt) =>
           opt
             .setName("role")
             .setDescription("Role to assign on verification")
-            .setRequired(true)
+            .setRequired(true),
         )
         .addStringOption((opt) =>
           opt
             .setName("accept_emoji")
             .setDescription("Emoji for accept")
-            .setRequired(true)
+            .setRequired(true),
         )
         .addStringOption((opt) =>
           opt
             .setName("reject_emoji")
             .setDescription("Emoji for reject")
-            .setRequired(true)
+            .setRequired(true),
         )
         .addStringOption((opt) =>
           opt
             .setName("message")
             .setDescription(
-              "Message ID to use for verification (optional - bot creates new message if not provided)"
+              "Message ID to use for verification (optional - bot creates new message if not provided)",
             )
-            .setRequired(false)
+            .setRequired(false),
         )
         .addBooleanOption((opt) =>
           opt
             .setName("kick_on_reject")
             .setDescription("Kick users who reject? (default: false)")
-            .setRequired(false)
-        )
+            .setRequired(false),
+        ),
     )
     .addSubcommand((sub) =>
       sub
         .setName("disable")
-        .setDescription("Disable verification for this server.")
+        .setDescription("Disable verification for this server."),
     )
     .addSubcommand((sub) =>
-      sub.setName("status").setDescription("Show current verification status.")
+      sub.setName("status").setDescription("Show current verification status."),
     ) as SlashCommandBuilder,
 
   execute: commandErrorHandler(
@@ -94,18 +95,24 @@ export const command: Command = {
       if (!guild)
         return interaction.reply({
           content: "❌ This command can only be used in a server.",
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
       const guildId = guild.id;
 
       if (sub === "setup") {
         const channel = interaction.options.getChannel(
           "channel",
-          true
+          true,
         ) as TextChannel;
         const role = interaction.options.getRole("role", true) as Role;
-        const acceptEmojiStr = interaction.options.getString("accept_emoji", true);
-        const rejectEmojiStr = interaction.options.getString("reject_emoji", true);
+        const acceptEmojiStr = interaction.options.getString(
+          "accept_emoji",
+          true,
+        );
+        const rejectEmojiStr = interaction.options.getString(
+          "reject_emoji",
+          true,
+        );
         const kickOnReject =
           interaction.options.getBoolean("kick_on_reject") ?? false;
         const messageId = interaction.options.getString("message");
@@ -121,7 +128,7 @@ export const command: Command = {
           } catch (error) {
             return interaction.reply({
               content: `❌ Could not find message with ID \`${messageId}\` in <#${channel.id}>. Make sure the message exists in the specified channel.`,
-              ephemeral: true,
+              flags: MessageFlags.Ephemeral,
             });
           }
         } else {
@@ -139,10 +146,10 @@ export const command: Command = {
           console.error("Failed to react to verification message:", error);
           return interaction.reply({
             content: `❌ I couldn't use one of the emojis. Make sure I have permission to use external emojis if it's a custom one from another server.`,
-            ephemeral: true,
+            flags: MessageFlags.Ephemeral,
           });
         }
-        
+
         const parseEmoji = (emoji: string) => {
           if (emoji.startsWith("<") && emoji.endsWith(">")) {
             const id = emoji.match(/\d{15,}/)?.[0];
@@ -169,35 +176,35 @@ export const command: Command = {
         };
         const guildRow = await database.guilds.findOrCreateByDiscordId(
           guildId,
-          { name: guild.name, iconUrl: guild.iconURL() || undefined }
+          { name: guild.name, iconUrl: guild.iconURL() || undefined },
         );
         await settings.setSetting(
           VERIFY_SETTING_KEY,
           config,
           undefined,
-          guildRow.id
+          guildRow.id,
         );
         await interaction.reply({
           content: `✅ Verification enabled in <#${channel.id}> ${
             messageId ? `using existing message` : `with new message`
           }.`,
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
       } else if (sub === "disable") {
         const guildRow = await database.guilds.findOrCreateByDiscordId(
           guildId,
-          { name: guild.name, iconUrl: guild.iconURL() || undefined }
+          { name: guild.name, iconUrl: guild.iconURL() || undefined },
         );
         // Remove config
         const config = await settings.getSettingValue<VerificationConfig>(
           VERIFY_SETTING_KEY,
           undefined,
-          guildRow.id
+          guildRow.id,
         );
         if (config && config.channelId && config.messageId) {
           try {
             const channel = (await guild.channels.fetch(
-              config.channelId
+              config.channelId,
             )) as TextChannel;
             const msg = await channel.messages.fetch(config.messageId);
             // Only delete if it's a message the bot sent (check if bot is author)
@@ -209,25 +216,29 @@ export const command: Command = {
             }
           } catch {}
         }
-        await settings.deleteBySetting(VERIFY_SETTING_KEY, undefined, guildRow.id);
+        await settings.deleteBySetting(
+          VERIFY_SETTING_KEY,
+          undefined,
+          guildRow.id,
+        );
         await interaction.reply({
-          content: `�� Verification disabled.`,
-          ephemeral: true,
+          content: `✅ Verification disabled.`,
+          flags: MessageFlags.Ephemeral,
         });
       } else if (sub === "status") {
         const guildRow = await database.guilds.findOrCreateByDiscordId(
           guildId,
-          { name: guild.name, iconUrl: guild.iconURL() || undefined }
+          { name: guild.name, iconUrl: guild.iconURL() || undefined },
         );
         const config = await settings.getSettingValue<VerificationConfig>(
           VERIFY_SETTING_KEY,
           undefined,
-          guildRow.id
+          guildRow.id,
         );
         if (!config || !config.enabled) {
           await interaction.reply({
             content: `Verification is not enabled.`,
-            ephemeral: true,
+            flags: MessageFlags.Ephemeral,
           });
           return;
         }
@@ -237,12 +248,13 @@ export const command: Command = {
           }>. Accept: ${config.acceptEmoji}, Reject: ${
             config.rejectEmoji
           }, Role: <@&${config.roleId}>${
-            config.kickOnReject ? ", Kicks on reject" : ""
-          }`,
-          ephemeral: true,
-        });
+            }${
+              config.kickOnReject ? ", Kicks on reject" : ""
+            }`,
+            flags: MessageFlags.Ephemeral,
+          });
       }
-    }
+    },
   ),
 };
 

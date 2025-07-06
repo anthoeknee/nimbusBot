@@ -1,17 +1,15 @@
-// In your middleware/errorHandler.ts file
-
 import {
   Message,
   Interaction,
   EmbedBuilder,
-  Colors, // Make sure this is imported
+  Colors,
   ButtonBuilder,
   ButtonStyle,
   ActionRowBuilder,
   ChatInputCommandInteraction,
   MessageFlags,
 } from "discord.js";
-import { logger } from "../utils/logger"; // Assuming this is correctly imported
+import { logger } from "../utils/logger";
 
 // Error types for better categorization
 export enum ErrorType {
@@ -183,7 +181,7 @@ function categorizeError(error: Error): ErrorContext {
 function logError(
   error: Error,
   context: ErrorContext,
-  interaction?: Interaction | Message
+  interaction?: Interaction | Message,
 ) {
   const errorReport: ErrorReport = {
     id: generateErrorId(),
@@ -217,8 +215,8 @@ function logError(
     context.severity === ErrorSeverity.CRITICAL
       ? "error"
       : context.severity === ErrorSeverity.HIGH
-      ? "error"
-      : "warn";
+        ? "error"
+        : "warn";
 
   logger[logLevel](
     `🚨 ERROR [${context.type}] [${context.severity}] [${errorReport.id}]:`,
@@ -231,14 +229,14 @@ function logError(
       channel: errorReport.channel,
       stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
       metadata: context.metadata,
-    }
+    },
   );
 
   // Log to console with colors in development
   if (process.env.NODE_ENV === "development") {
     console.error(
       "\x1b[31m%s\x1b[0m",
-      `[ERROR] ${errorReport.id} - ${error.name}: ${error.message}`
+      `[ERROR] ${errorReport.id} - ${error.name}: ${error.message}`,
     );
     if (error.stack) {
       console.error("\x1b[33m%s\x1b[0m", error.stack);
@@ -255,7 +253,7 @@ function generateErrorId(): string {
 function createErrorEmbed(
   error: Error,
   context: ErrorContext,
-  errorId: string
+  errorId: string,
 ): EmbedBuilder {
   const severityColors = {
     [ErrorSeverity.LOW]: Colors.Yellow,
@@ -275,7 +273,7 @@ function createErrorEmbed(
     .setTitle(`${severityEmojis[context.severity]} Error Occurred`)
     .setDescription(
       context.userFriendly ||
-        "An unexpected error occurred. Please try again later."
+        "An unexpected error occurred. Please try again later.",
     )
     .setColor(severityColors[context.severity])
     .addFields(
@@ -293,7 +291,7 @@ function createErrorEmbed(
         name: "Error ID",
         value: `\`${errorId}\``,
         inline: true,
-      }
+      },
     )
     .setTimestamp();
 
@@ -321,7 +319,7 @@ function createErrorEmbed(
 // Create error action buttons
 function createErrorActions(
   errorId: string,
-  context: ErrorContext
+  context: ErrorContext,
 ): ActionRowBuilder<ButtonBuilder> {
   const buttons: ButtonBuilder[] = [];
 
@@ -330,7 +328,7 @@ function createErrorActions(
       new ButtonBuilder()
         .setCustomId(`retry_${errorId}`)
         .setLabel("🔄 Retry")
-        .setStyle(ButtonStyle.Primary)
+        .setStyle(ButtonStyle.Primary),
     );
   }
 
@@ -338,7 +336,7 @@ function createErrorActions(
     new ButtonBuilder()
       .setCustomId(`report_${errorId}`)
       .setLabel("📋 Report Issue")
-      .setStyle(ButtonStyle.Secondary)
+      .setStyle(ButtonStyle.Secondary),
   );
 
   if (process.env.NODE_ENV === "development") {
@@ -346,7 +344,7 @@ function createErrorActions(
       new ButtonBuilder()
         .setCustomId(`debug_${errorId}`)
         .setLabel("🐛 Debug Info")
-        .setStyle(ButtonStyle.Secondary)
+        .setStyle(ButtonStyle.Secondary),
     );
   }
 
@@ -360,7 +358,7 @@ export function errorHandler<T extends ChatInputCommandInteraction | Message>(
     context?: Partial<ErrorContext>;
     fallback?: (ctx: T, error: Error) => Promise<void>;
     silent?: boolean;
-  }
+  },
 ) {
   return async (ctx: T) => {
     try {
@@ -394,7 +392,7 @@ export function errorHandler<T extends ChatInputCommandInteraction | Message>(
 
 // Specialized error handlers for different contexts
 export function commandErrorHandler<
-  T extends ChatInputCommandInteraction | Message
+  T extends ChatInputCommandInteraction | Message,
 >(handler: (ctx: T) => Promise<any> | any, commandName?: string) {
   return errorHandler(handler, {
     context: (error?: Error) => {
@@ -416,7 +414,7 @@ export function commandErrorHandler<
 
 export function eventErrorHandler<T extends any[]>(
   handler: (...args: T) => Promise<any> | any,
-  eventName?: string
+  eventName?: string,
 ) {
   return async (...args: T) => {
     try {
@@ -440,7 +438,7 @@ export function eventErrorHandler<T extends any[]>(
 
 export function serviceErrorHandler<T extends any[]>(
   handler: (...args: T) => Promise<any> | any,
-  serviceName?: string
+  serviceName?: string,
 ) {
   return async (...args: T) => {
     try {
@@ -471,7 +469,7 @@ export function createPermissionDeniedEmbed(user?: {
     .setTitle("🚫 Permission Denied")
     .setDescription(
       `Sorry, you don't have permission to use this command.` +
-        (user ? `\n\nUser: **${user.tag || user.id || "Unknown"}**` : "")
+        (user ? `\n\nUser: **${user.tag || user.id || "Unknown"}**` : ""),
     )
     .setColor(Colors.Red)
     .setFooter({
@@ -484,7 +482,7 @@ export function createPermissionDeniedEmbed(user?: {
 async function sendErrorResponse(
   ctx: ChatInputCommandInteraction | Message,
   error: Error,
-  context: ErrorContext
+  context: ErrorContext,
 ) {
   const errorId = generateErrorId();
   const embed = createErrorEmbed(error, context, errorId);
@@ -497,8 +495,8 @@ async function sendErrorResponse(
         ctx instanceof Message
           ? { tag: ctx.author?.tag, id: ctx.author?.id }
           : ctx instanceof ChatInputCommandInteraction
-          ? { tag: ctx.user?.tag, id: ctx.user?.id }
-          : undefined
+            ? { tag: ctx.user?.tag, id: ctx.user?.id }
+            : undefined,
       );
       if (ctx instanceof ChatInputCommandInteraction) {
         if (ctx.replied || ctx.deferred) {
@@ -522,7 +520,7 @@ async function sendErrorResponse(
         logger.warn(
           `Skipping user-facing error response for interaction ID ${ctx.id} ` +
             `because it's already replied and the command likely completed successfully. ` +
-            `Error: ${error.message}`
+            `Error: ${error.message}`,
         );
         return;
       } else {
@@ -541,7 +539,7 @@ async function sendErrorResponse(
   } catch (replyError) {
     logger.error(
       "Failed to send error response to user (outer catch):",
-      replyError
+      replyError,
     );
     // Fallback to simple text response if the embed/components reply failed
     try {
@@ -584,7 +582,7 @@ export function getErrorStats() {
     byType: {} as Record<ErrorType, number>,
     bySeverity: {} as Record<ErrorSeverity, number>,
     recent: errorReports.filter(
-      (r) => Date.now() - r.timestamp.getTime() < 3600000
+      (r) => Date.now() - r.timestamp.getTime() < 3600000,
     ).length, // Last hour
     critical: errorReports.filter((r) => r.severity === ErrorSeverity.CRITICAL)
       .length,

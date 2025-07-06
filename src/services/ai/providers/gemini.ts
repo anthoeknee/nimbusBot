@@ -36,13 +36,13 @@ export class GeminiProvider
 
   // Helper: Fetch media from URL and convert to base64
   async fetchMediaAsBase64(
-    url: string
+    url: string,
   ): Promise<{ data: string; mimeType: string }> {
     try {
       const response = await fetch(url);
       if (!response.ok) {
         throw new Error(
-          `Failed to fetch media from URL: ${response.statusText}`
+          `Failed to fetch media from URL: ${response.statusText}`,
         );
       }
 
@@ -81,7 +81,7 @@ export class GeminiProvider
       throw new Error(
         `Error fetching media from URL: ${
           error instanceof Error ? error.message : String(error)
-        }`
+        }`,
       );
     }
   }
@@ -102,7 +102,7 @@ export class GeminiProvider
             if (contentItem.source.type === "url") {
               try {
                 const { data, mimeType } = await this.fetchMediaAsBase64(
-                  contentItem.source.url
+                  contentItem.source.url,
                 );
                 parts.push({
                   inline_data: {
@@ -113,7 +113,7 @@ export class GeminiProvider
               } catch (error) {
                 console.error(
                   `Failed to process media from URL: ${contentItem.source.url}`,
-                  error
+                  error,
                 );
                 // Continue with other parts instead of failing completely
                 parts.push({
@@ -124,12 +124,12 @@ export class GeminiProvider
               }
             } else {
               throw new Error(
-                `Unsupported source type: ${contentItem.source.type}`
+                `Unsupported source type: ${contentItem.source.type}`,
               );
             }
           } else {
             throw new Error(
-              `Unsupported content type: ${(contentItem as any).type}`
+              `Unsupported content type: ${(contentItem as any).type}`,
             );
           }
         }
@@ -245,7 +245,7 @@ export class GeminiProvider
   }
 
   async speechToText(
-    request: AISpeechToTextRequest
+    request: AISpeechToTextRequest,
   ): Promise<AISpeechToTextResponse> {
     // Gemini API: Use multimodal chat endpoint for audio transcription
     // See: https://ai.google.dev/gemini-api/docs/audio-generation
@@ -296,7 +296,7 @@ export class GeminiProvider
       if (!res.ok) {
         const errorText = await res.text();
         throw new Error(
-          `Gemini speechToText error: ${res.statusText} - ${errorText}`
+          `Gemini speechToText error: ${res.statusText} - ${errorText}`,
         );
       }
       const data = await res.json();
@@ -310,13 +310,13 @@ export class GeminiProvider
       throw new Error(
         `Gemini speechToText failed: ${
           error instanceof Error ? error.message : String(error)
-        }`
+        }`,
       );
     }
   }
 
   async textToSpeech(
-    request: AITextToSpeechRequest
+    request: AITextToSpeechRequest,
   ): Promise<AITextToSpeechResponse> {
     // Default to Gemini 2.5 Flash Preview TTS model
     const model = request.model || "gemini-2.5-flash-preview-tts";
@@ -469,7 +469,7 @@ export class GeminiProvider
       if (!res.ok) {
         const errorText = await res.text();
         throw new Error(
-          `Gemini vision error: ${res.statusText} - ${errorText}`
+          `Gemini vision error: ${res.statusText} - ${errorText}`,
         );
       }
       const data = await res.json();
@@ -479,7 +479,7 @@ export class GeminiProvider
       throw new Error(
         `Gemini vision failed: ${
           error instanceof Error ? error.message : String(error)
-        }`
+        }`,
       );
     }
   }

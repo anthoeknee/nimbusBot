@@ -2,7 +2,50 @@ import { ToolDefinition } from "../../../types/ai";
 
 // Import all tools here (add new ones as you create them)
 import { getWeather } from "./myTool";
-import { saveLongTermMemory, searchLongTermMemory } from "./memory";
+import {
+  saveLongTermMemory,
+  searchLongTermMemory,
+  getConversationStats,
+  clearConversationContext,
+  getMemoryAnalytics,
+} from "./memory";
+import {
+  analyzeConversationForMemory,
+  saveStructuredMemory,
+  getMemoryInsights,
+  consolidateMemories,
+  searchMemoriesByCategory,
+  manualMemoryTransfer,
+} from "./memoryAdvanced";
+import {
+  configureMemorySystem,
+  setMemoryPermissions,
+  addMemoryCategory,
+  getMemoryConfiguration,
+  enableToolDrivenMode,
+  resetMemoryConfiguration,
+  validateMemoryConfiguration,
+} from "./configuration";
+import {
+  analyzeMemoryWorthiness,
+  curateMemoryCollection,
+  generateMemoryRecommendations,
+  assessMemoryQuality,
+} from "./memory/curation";
+import {
+  makeMemoryDecision,
+  analyzeConversationContext,
+  evaluateMemoryRelevance,
+  mapMemoryRelationships,
+  analyzeTemporalPatterns,
+} from "./memory/decision";
+import {
+  createMemoryRelationship,
+  findRelatedMemories,
+  mapMemoryNetwork,
+  analyzeRelationshipPatterns,
+  suggestMemoryConnections,
+} from "./memory/relationships";
 // import { anotherTool } from "./anotherTool";
 // ...etc
 
@@ -10,6 +53,41 @@ const toolList: ToolDefinition[] = [
   getWeather,
   saveLongTermMemory,
   searchLongTermMemory,
+  getConversationStats,
+  clearConversationContext,
+  getMemoryAnalytics,
+  // Advanced memory tools
+  analyzeConversationForMemory,
+  saveStructuredMemory,
+  getMemoryInsights,
+  consolidateMemories,
+  searchMemoriesByCategory,
+  manualMemoryTransfer,
+  // Configuration tools
+  configureMemorySystem,
+  setMemoryPermissions,
+  addMemoryCategory,
+  getMemoryConfiguration,
+  enableToolDrivenMode,
+  resetMemoryConfiguration,
+  validateMemoryConfiguration,
+  // Memory curation tools
+  analyzeMemoryWorthiness,
+  curateMemoryCollection,
+  generateMemoryRecommendations,
+  assessMemoryQuality,
+  // Memory decision tools
+  makeMemoryDecision,
+  analyzeConversationContext,
+  evaluateMemoryRelevance,
+  mapMemoryRelationships,
+  analyzeTemporalPatterns,
+  // Memory relationship tools
+  createMemoryRelationship,
+  findRelatedMemories,
+  mapMemoryNetwork,
+  analyzeRelationshipPatterns,
+  suggestMemoryConnections,
   // anotherTool,
   // ...etc
 ];
@@ -47,7 +125,7 @@ export function toolToOpenAIFunction(tool: ToolDefinition) {
             ...(param.enum ? { enum: param.enum } : {}),
             ...(param.default !== undefined ? { default: param.default } : {}),
           },
-        ])
+        ]),
       ),
       required: tool.parameters.filter((p) => p.required).map((p) => p.name),
     },
@@ -61,7 +139,7 @@ export function getOpenAIFunctions() {
 export async function executeTool(
   name: string,
   args: any,
-  context: any
+  context: any,
 ): Promise<any> {
   const tool = getTool(name);
   if (!tool) throw new Error(`Tool '${name}' not found`);

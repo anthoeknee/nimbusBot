@@ -150,10 +150,10 @@ export interface AIProviderInterface {
   embeddings: any;
   chat(request: AIChatRequest): Promise<AIChatResponse>;
   speechToText?(
-    request: AISpeechToTextRequest
+    request: AISpeechToTextRequest,
   ): Promise<AISpeechToTextResponse>;
   textToSpeech?(
-    request: AITextToSpeechRequest
+    request: AITextToSpeechRequest,
   ): Promise<AITextToSpeechResponse>;
   vision?(request: AIVisionRequest): Promise<AIVisionResponse>;
   reasoning?(request: AIReasoningRequest): Promise<AIReasoningResponse>;

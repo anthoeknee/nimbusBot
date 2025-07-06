@@ -21,8 +21,16 @@ export const logger = {
     }
   },
   // Add command-specific logging
-  command: (commandName: string, userId: string, action: string, ...args: any[]) => {
+  command: (
+    commandName: string,
+    userId: string,
+    action: string,
+    ...args: any[]
+  ) => {
     const timestamp = new Date().toISOString();
-    console.log(`[${timestamp}] [COMMAND:${commandName}] [USER:${userId}] ${action}`, ...args);
-  }
+    console.log(
+      `[${timestamp}] [COMMAND:${commandName}] [USER:${userId}] ${action}`,
+      ...args,
+    );
+  },
 };

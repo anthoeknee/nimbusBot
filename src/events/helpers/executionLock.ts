@@ -10,11 +10,11 @@ const executionLocks = new Map<string, Promise<any>>();
  */
 export async function withExecutionLock<T>(
   key: string,
-  fn: () => Promise<T>
+  fn: () => Promise<T>,
 ): Promise<T> {
   if (executionLocks.has(key)) {
     logger.warn(
-      `Duplicate execution detected for ${key}, waiting for existing execution`
+      `Duplicate execution detected for ${key}, waiting for existing execution`,
     );
     await executionLocks.get(key);
     // After waiting, do not re-execute
@@ -28,7 +28,7 @@ export async function withExecutionLock<T>(
       // Clean up old locks periodically
       if (executionLocks.size > 100) {
         logger.debug(
-          `Cleaning up execution locks, current size: ${executionLocks.size}`
+          `Cleaning up execution locks, current size: ${executionLocks.size}`,
         );
         for (const [k, promise] of executionLocks.entries()) {
           promise.catch(() => {});

@@ -1,84 +1,100 @@
 // src/utils/loader.ts
-import { opendir } from "fs/promises";
-import { join } from "path";
+import { readdirSync, statSync } from "fs";
+import { join, extname } from "path";
 import { Command } from "../types/command";
-import type { Event } from "../types/event";
-import type { Service } from "../types/service";
-import type { ClientEvents } from "discord.js";
+import { Event } from "../types/event";
 import { logger } from "./logger";
 
-// Async generator for walking directories (returns .js/.ts files, skips .d.ts)
-export async function* walk(dir: string): AsyncGenerator<string> {
-  const dirHandle = await opendir(dir);
-  for await (const entry of dirHandle) {
-    const path = join(dir, entry.name);
-    if (entry.isDirectory()) {
-      yield* walk(path);
-    } else if (
-      (entry.name.endsWith('.ts') || entry.name.endsWith('.js')) &&
-      !entry.name.endsWith('.d.ts')
-    ) {
-      yield path;
-    }
-  }
-}
+/**
+ * Recursively walks a directory and returns all TypeScript/JavaScript files
+ * Skips helper directories and non-module files
+ */
+function getFiles(dir: string, skipHelpers: boolean = false): string[] {
+  const files: string[] = [];
 
-// Generic module loader with error safety and multi/single support
-async function loadModules<T>(dir: string): Promise<T[]> {
-  const modules: T[] = [];
-  const fullPath = join(import.meta.dir, dir);
-  for await (const file of walk(fullPath)) {
-    try {
-      const mod = await import(file);
-      const exported = mod.default;
-      if (!exported) continue;
+  try {
+    const entries = readdirSync(dir);
 
-      // If moduleType is 'multi' or it's an array, load all
-      if (Array.isArray(exported)) {
-        modules.push(...exported);
-      } else if (exported.meta?.moduleType === "multi" && exported.modules) {
-        modules.push(...exported.modules);
-      } else {
-        modules.push(exported);
+    for (const entry of entries) {
+      const fullPath = join(dir, entry);
+      const stat = statSync(fullPath);
+
+      if (stat.isDirectory()) {
+        // Skip helper directories when loading events/commands
+        if (skipHelpers && (entry === "helpers" || entry === "utils")) {
+          continue;
+        }
+        files.push(...getFiles(fullPath, skipHelpers));
+      } else if (stat.isFile()) {
+        const ext = extname(entry);
+        if ((ext === ".ts" || ext === ".js") && !entry.endsWith(".d.ts")) {
+          files.push(fullPath);
+        }
       }
-    } catch (err) {
-      logger.warn(`Failed to load module at ${file}:`, err);
-      continue;
     }
+  } catch (error) {
+    logger.warn(`Failed to read directory ${dir}:`, error);
   }
-  return modules;
+
+  return files;
 }
 
+/**
+ * Load all commands from the commands directory
+ */
 export async function loadCommands(): Promise<Map<string, Command>> {
   const commands = new Map<string, Command>();
-  const commandModules = await loadModules<Command>("../commands");
-  for (const command of commandModules) {
-    if (!command || !command.meta) {
-      logger.warn("Invalid command module:", command);
-      continue;
+  const commandsDir = join(import.meta.dir, "../commands");
+  const files = getFiles(commandsDir, true);
+
+  for (const file of files) {
+    try {
+      const module = await import(file);
+      const command = module.default || module.command;
+
+      if (command && command.meta && command.data && command.execute) {
+        commands.set(command.meta.name, command);
+        logger.debug(`Loaded command: ${command.meta.name}`);
+      } else {
+        logger.warn(
+          `Invalid command module at ${file}: missing required properties`,
+        );
+      }
+    } catch (error) {
+      logger.error(`Failed to load command from ${file}:`, error);
     }
-    commands.set(command.meta.name, command);
   }
+
+  logger.info(`Loaded ${commands.size} commands`);
   return commands;
 }
 
-export async function loadEvents(): Promise<Event<keyof ClientEvents>[]> {
-  return loadModules<Event<keyof ClientEvents>>("../events");
-}
+/**
+ * Load all events from the events directory
+ */
+export async function loadEvents(): Promise<Event<any>[]> {
+  const events: Event<any>[] = [];
+  const eventsDir = join(import.meta.dir, "../events");
+  const files = getFiles(eventsDir, true);
 
-export async function loadServices(): Promise<Map<string, Service>> {
-  const services = new Map<string, Service>();
-  const serviceModules = await loadModules<Service>("../services");
-  for (const service of serviceModules) {
-    if (service.initialize) {
-      try {
-        await service.initialize();
-      } catch (err) {
-        logger.warn(`Failed to initialize service ${service.name}:`, err);
-        continue;
+  for (const file of files) {
+    try {
+      const module = await import(file);
+      const event = module.default || module.event;
+
+      if (event && event.name && event.execute) {
+        events.push(event);
+        logger.debug(`Loaded event: ${event.name}`);
+      } else {
+        logger.warn(
+          `Invalid event module at ${file}: missing required properties`,
+        );
       }
+    } catch (error) {
+      logger.error(`Failed to load event from ${file}:`, error);
     }
-    services.set(service.name, service);
   }
-  return services;
+
+  logger.info(`Loaded ${events.length} events`);
+  return events;
 }

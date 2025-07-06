@@ -25,11 +25,11 @@ const event: Event<"guildCreate"> = {
         .filter(
           (channel) =>
             channel.type === ChannelType.GuildText &&
-            channel.permissionsFor(guild.members.me!)?.has("SendMessages")
+            channel.permissionsFor(guild.members.me!)?.has("SendMessages"),
         )
         .filter(
           (channel): channel is TextChannel =>
-            channel.type === ChannelType.GuildText
+            channel.type === ChannelType.GuildText,
         )
         .sort((a, b) => a.position - b.position);
       targetChannel = channels.first() || null;
@@ -38,7 +38,7 @@ const event: Event<"guildCreate"> = {
     // --- Send the hello message if a suitable channel was found ---
     if (!targetChannel) {
       console.log(
-        `Could not find a suitable channel to send welcome message in ${guild.name}`
+        `Could not find a suitable channel to send welcome message in ${guild.name}`,
       );
       return;
     }
@@ -56,7 +56,7 @@ function createWelcomeEmbed(guild: Guild) {
   return new EmbedBuilder()
     .setTitle("☁️ Hii! So happy to be here! ✨")
     .setDescription(
-      `Hello **${guild.name}**! My name is nimbus, and I can't wait to help out.`
+      `Hello **${guild.name}**! My name is nimbus, and I can't wait to help out.`,
     )
     .setColor("#F4C2C2")
     .addFields(
@@ -70,7 +70,7 @@ function createWelcomeEmbed(guild: Guild) {
         value:
           "[Support Server](https://discord.gg/j7natpDbEj) • [Documentation](N/A)",
         inline: false,
-      }
+      },
     )
     .setThumbnail(guild.members.me?.displayAvatarURL() || null)
     .setFooter({

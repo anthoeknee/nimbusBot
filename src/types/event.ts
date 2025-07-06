@@ -1,24 +1,10 @@
-// Event handler type definitions for Discord bot
+import { ClientEvents } from "discord.js";
 
-import { ClientEvents, Message } from "discord.js";
-
-// Generic event handler signature
-type EventHandler<T = any> = (event: T, client: any) => Promise<void>;
-
-// Example: Message event handler
-type MessageEventHandler = EventHandler<any>; // Replace 'any' with your Discord message type
-
-// Example: Ready event handler
-type ReadyEventHandler = EventHandler<void>;
-
-export type ModuleType = "single" | "multi" | "auto";
-
-// Event structure for dynamic loading and registration
-export interface Event<T extends keyof ClientEvents> {
+/**
+ * Event handler interface for Discord.js events
+ */
+export interface Event<T extends keyof ClientEvents = keyof ClientEvents> {
   name: T;
   once?: boolean;
-  moduleType?: ModuleType;
-  execute: (...args: ClientEvents[T]) => void;
+  execute: (...args: ClientEvents[T]) => void | Promise<void>;
 }
-
-export type { EventHandler, MessageEventHandler, ReadyEventHandler };
