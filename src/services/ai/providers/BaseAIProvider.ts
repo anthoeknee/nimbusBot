@@ -1,6 +1,14 @@
+/**
+ * Abstract base class for all AI providers.
+ * Handles API key management, header helpers, and error helpers.
+ */
 export abstract class BaseAIProvider {
   protected apiKey: string;
 
+  /**
+   * @param envKey - The environment variable key for the API key
+   * @throws Error if the API key is missing
+   */
   constructor(envKey: string) {
     this.apiKey = process.env[envKey] || "";
     if (!this.apiKey) {
@@ -9,10 +17,11 @@ export abstract class BaseAIProvider {
   }
 
   /**
-   * Returns headers for JSON requests.
-   * Override for provider-specific needs.
+   * Get JSON headers for API requests.
+   * @param authHeader - The header key for the API key (optional)
+   * @param extra - Any extra headers to include
    */
-  getJsonHeaders(authHeader: string, extra?: Record<string, string>) {
+  getJsonHeaders(authHeader?: string, extra?: Record<string, string>) {
     return {
       "Content-Type": "application/json",
       ...extra,
@@ -21,10 +30,11 @@ export abstract class BaseAIProvider {
   }
 
   /**
-   * Returns headers for FormData requests (no content-type).
-   * Override for provider-specific needs.
+   * Get form headers for multipart/form-data requests.
+   * @param authHeader - The header key for the API key (optional)
+   * @param extra - Any extra headers to include
    */
-  getFormHeaders(authHeader: string, extra?: Record<string, string>) {
+  getFormHeaders(authHeader?: string, extra?: Record<string, string>) {
     return {
       ...extra,
       ...(authHeader ? { [authHeader]: this.apiKey } : {}),
@@ -32,7 +42,10 @@ export abstract class BaseAIProvider {
   }
 
   /**
-   * Standardized "not implemented" error.
+   * Helper for not implemented features.
+   * @param feature - The feature name
+   * @param provider - The provider name
+   * @throws Error always
    */
   static notImplemented(feature: string, provider: string): never {
     throw new Error(`${provider} ${feature} not implemented`);

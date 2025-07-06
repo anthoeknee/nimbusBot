@@ -9,6 +9,7 @@ import {
   PermissionsBitField,
 } from "discord.js";
 import { logger } from "../utils/logger";
+import { sendDM } from "./helpers/dm";
 
 const VERIFY_SETTING_KEY = "verification_config";
 
@@ -126,11 +127,10 @@ const event: Event<"messageReactionAdd"> = {
             } catch {}
           }
           // Optionally DM user
-          try {
-            await user.send(
-              `❌ Sorry, I couldn't assign you the verification role in **${guild.name}** due to missing permissions. Please contact a server admin.`
-            );
-          } catch {}
+          await sendDM(
+            user,
+            `❌ Sorry, I couldn't assign you the verification role in **${guild.name}** due to missing permissions. Please contact a server admin.`
+          );
           return;
         }
         // Try to add role
@@ -138,11 +138,10 @@ const event: Event<"messageReactionAdd"> = {
           await member.roles.add(targetRole, "Verification accepted");
           logger.info(`Role ${targetRole.id} added to user ${user.id}`);
           // Optionally DM user
-          try {
-            await user.send(
-              `✅ You have been verified and given access in **${guild.name}**! Welcome!`
-            );
-          } catch {}
+          await sendDM(
+            user,
+            `✅ You have been verified and given access in **${guild.name}**! Welcome!`
+          );
         } catch (err) {
           logger.error(`Failed to add role:`, err);
           // Inform channel
@@ -155,11 +154,10 @@ const event: Event<"messageReactionAdd"> = {
             } catch {}
           }
           // Optionally DM user
-          try {
-            await user.send(
-              `❌ Sorry, I couldn't assign you the verification role in **${guild.name}**. Please contact a server admin.`
-            );
-          } catch {}
+          await sendDM(
+            user,
+            `❌ Sorry, I couldn't assign you the verification role in **${guild.name}**. Please contact a server admin.`
+          );
         }
       }
       // --- Reject: Kick if enabled ---
@@ -188,11 +186,10 @@ const event: Event<"messageReactionAdd"> = {
               } catch {}
             }
             // Optionally DM user
-            try {
-              await user.send(
-                `❌ You were not verified in **${guild.name}**, but I couldn't remove you due to missing permissions. Please contact a server admin.`
-              );
-            } catch {}
+            await sendDM(
+              user,
+              `❌ You were not verified in **${guild.name}**, but I couldn't remove you due to missing permissions. Please contact a server admin.`
+            );
             return;
           }
           // Try to kick
@@ -200,11 +197,10 @@ const event: Event<"messageReactionAdd"> = {
             await member.kick("Rejected verification");
             logger.info(`User ${user.id} kicked for rejecting verification`);
             // Optionally DM user (may not deliver if kicked)
-            try {
-              await user.send(
-                `❌ You have been removed from **${guild.name}** for rejecting verification. If this was a mistake, you may rejoin and try again.`
-              );
-            } catch {}
+            await sendDM(
+              user,
+              `❌ You have been removed from **${guild.name}** for rejecting verification. If this was a mistake, you may rejoin and try again.`
+            );
           } catch (err) {
             logger.error(`Failed to kick user:`, err);
             // Inform channel
@@ -217,22 +213,20 @@ const event: Event<"messageReactionAdd"> = {
               } catch {}
             }
             // Optionally DM user
-            try {
-              await user.send(
-                `❌ I tried to remove you from **${guild.name}** for rejecting verification, but something went wrong. Please contact a server admin.`
-              );
-            } catch {}
+            await sendDM(
+              user,
+              `❌ I tried to remove you from **${guild.name}** for rejecting verification, but something went wrong. Please contact a server admin.`
+            );
           }
         } else {
           logger.info(
             `User ${user.id} rejected verification but kick is disabled`
           );
           // Optionally DM user
-          try {
-            await user.send(
-              `❌ You rejected verification in **${guild.name}**. If this was a mistake, you may try again or contact a server admin.`
-            );
-          } catch {}
+          await sendDM(
+            user,
+            `❌ You rejected verification in **${guild.name}**. If this was a mistake, you may try again or contact a server admin.`
+          );
         }
       }
       // --- Always remove the user's reaction ---

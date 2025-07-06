@@ -2,6 +2,7 @@ import { Event } from "../types/event";
 import { database, settings } from "../services/db";
 import { VerificationConfig } from "../services/db/types";
 import { GuildMember, PermissionsBitField } from "discord.js";
+import { sendDM } from "./helpers/dm";
 
 const VERIFY_SETTING_KEY = "verification_config";
 
@@ -34,11 +35,10 @@ const event: Event<"guildMemberAdd"> = {
       }
     }
     // Optionally DM the user
-    try {
-      await member.send(
-        `Welcome to ${member.guild.name}! Please verify yourself in <#${config.channelId}> by reacting to the verification message.`
-      );
-    } catch {}
+    await sendDM(
+      member.user,
+      `Welcome to ${member.guild.name}! Please verify yourself in <#${config.channelId}> by reacting to the verification message.`
+    );
   },
 };
 

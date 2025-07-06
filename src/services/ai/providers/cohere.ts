@@ -19,7 +19,8 @@ import {
   AIClassifyRequest,
   AIClassifyResponse,
 } from "../../../types/ai";
-import { BaseAIProvider } from "../BaseAIProvider";
+import { BaseAIProvider } from "./BaseAIProvider";
+import { config } from "../../../config";
 
 export class CohereProvider
   extends BaseAIProvider
@@ -93,18 +94,36 @@ export class CohereProvider
   }
 
   async embed(request: AIEmbedRequest): Promise<AIEmbedResponse> {
+    // Build the body based on input type
+    let body: any = {
+      model: request.model,
+      input_type: request.inputType,
+      embedding_types: request.embeddingTypes,
+      output_dimension: request.outputDimension,
+    };
+    if (request.inputs) {
+      body.inputs = request.inputs;
+    } else if (request.images) {
+      body.images = request.images;
+    } else if (request.texts) {
+      body.texts = request.texts;
+    }
+    // Remove undefined/null fields
+    Object.keys(body).forEach((k) =>
+      body[k] === undefined || body[k] === null ? delete body[k] : null
+    );
     const res = await fetch("https://api.cohere.com/v2/embed", {
       method: "POST",
       headers: this.getHeaders(),
-      body: JSON.stringify({
-        texts: request.texts,
-        model: request.model,
-        input_type: request.inputType || "classification",
-        embedding_types: request.embeddingTypes || ["float"],
-      }),
+      body: JSON.stringify(body),
     });
     if (!res.ok) throw new Error(`Cohere embed error: ${res.statusText}`);
-    return res.json();
+    const data = await res.json();
+    // Return all embedding types if present (float, int8, binary, etc.)
+    return {
+      embeddings: data.embeddings || data,
+      raw: data,
+    };
   }
 
   async rerank(request: AIRerankRequest): Promise<AIRerankResponse> {

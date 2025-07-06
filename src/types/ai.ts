@@ -163,15 +163,26 @@ export interface AIProviderInterface {
 
 export interface AIEmbedRequest {
   provider: AIProvider;
-  texts: string[];
+  texts?: string[]; // For text-only embedding
+  images?: string[]; // For image-only embedding (base64 or URL)
+  inputs?: Array<{
+    content: Array<{
+      type: string; // 'text' | 'image_url'
+      text?: string;
+      image_url?: { url: string };
+    }>;
+  }>; // For multimodal/fused input
   model: string;
-  inputType?: string;
-  embeddingTypes?: string[];
+  inputType?: string; // e.g. 'search_query', 'search_document', 'classification', 'image'
+  embeddingTypes?: string[]; // e.g. ['float'], ['int8'], ['binary'], etc.
+  outputDimension?: number; // e.g. 256, 512, 1024, 1536
 }
 
 export interface AIEmbedResponse {
-  embeddings: number[][];
-  // ...other fields returned by Cohere if needed
+  // Support for multiple embedding types (float, int8, binary, etc.)
+  embeddings: number[][] | Record<string, any>; // float/int8/binary arrays, or object keyed by type
+  // Optionally include raw response for advanced use
+  raw?: any;
 }
 
 // Tool/function definition (OpenAI-compatible)
@@ -192,4 +203,84 @@ export interface AIToolCall {
     name: string;
     arguments: string; // JSON string
   };
+}
+
+// --- Conversation Memory Types ---
+export interface ConversationMessage {
+  id: string;
+  authorId: string;
+  authorName?: string;
+  channelId: string;
+  content: string | Array<{ type: string; [key: string]: any }>;
+  timestamp: number;
+  type: "user" | "bot" | "system";
+  metadata?: Record<string, any>;
+}
+
+export interface ConversationContext {
+  id: string; // userId for DMs, channelId for servers
+  type: "user" | "channel";
+  messages: ConversationMessage[];
+  lastActive: number;
+  sessionState?: Record<string, any>;
+}
+
+// --- Tool System Types ---
+export interface ToolPermission {
+  users?: string[];
+  roles?: string[];
+  channels?: string[];
+}
+
+export interface ToolParameter {
+  name: string;
+  type: "string" | "number" | "boolean" | "object" | "array";
+  description: string;
+  required?: boolean;
+  enum?: string[];
+  default?: any;
+}
+
+export interface ToolContext {
+  userId?: string;
+  channelId?: string;
+  roles?: string[];
+  // ...add more as needed
+}
+
+export interface ToolDefinition {
+  name: string;
+  description: string;
+  parameters: ToolParameter[];
+  permissions?: string[];
+  handler: (args: any, context: ToolContext) => Promise<any>;
+  // Optionally: category, examples, etc.
+}
+
+// --- Memory Tool Types ---
+export interface SaveLongTermMemoryArgs {
+  content: string;
+  embedding: number[];
+  userId?: number;
+  guildId?: number;
+}
+export interface SaveLongTermMemoryResult {
+  id: number;
+  userId: number | null;
+  guildId: number | null;
+  content: string;
+  embedding: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SearchLongTermMemoryArgs {
+  embedding: number[];
+  topK?: number;
+  userId?: number;
+  guildId?: number;
+}
+export interface SearchLongTermMemoryResult {
+  data: SaveLongTermMemoryResult;
+  similarity: number;
 }

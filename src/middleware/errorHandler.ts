@@ -105,8 +105,9 @@ function categorizeError(error: Error): ErrorContext {
     };
   }
 
-  // Permission errors
+  // Permission errors (explicit name check)
   if (
+    name === "permissiondenied" ||
     message.includes("permission") ||
     message.includes("access") ||
     message.includes("forbidden") ||
@@ -396,10 +397,19 @@ export function commandErrorHandler<
   T extends ChatInputCommandInteraction | Message
 >(handler: (ctx: T) => Promise<any> | any, commandName?: string) {
   return errorHandler(handler, {
-    context: {
-      type: ErrorType.COMMAND,
-      severity: ErrorSeverity.MEDIUM,
-      metadata: { commandName },
+    context: (error?: Error) => {
+      if (error && error.name === "PermissionDenied") {
+        return {
+          type: ErrorType.PERMISSION,
+          severity: ErrorSeverity.LOW,
+          metadata: { commandName },
+        };
+      }
+      return {
+        type: ErrorType.COMMAND,
+        severity: ErrorSeverity.MEDIUM,
+        metadata: { commandName },
+      };
     },
   });
 }
@@ -452,6 +462,24 @@ export function serviceErrorHandler<T extends any[]>(
   };
 }
 
+// Helper to create a pretty permission denied embed
+export function createPermissionDeniedEmbed(user?: {
+  tag?: string;
+  id?: string;
+}) {
+  return new EmbedBuilder()
+    .setTitle("🚫 Permission Denied")
+    .setDescription(
+      `Sorry, you don't have permission to use this command.` +
+        (user ? `\n\nUser: **${user.tag || user.id || "Unknown"}**` : "")
+    )
+    .setColor(Colors.Red)
+    .setFooter({
+      text: "If you believe this is a mistake, contact the server admin or bot owner.",
+    })
+    .setTimestamp();
+}
+
 // Send error response to user
 async function sendErrorResponse(
   ctx: ChatInputCommandInteraction | Message,
@@ -463,6 +491,27 @@ async function sendErrorResponse(
   const actions = createErrorActions(errorId, context);
 
   try {
+    // Use pretty embed for permission errors
+    if (context.type === ErrorType.PERMISSION) {
+      const embed = createPermissionDeniedEmbed(
+        ctx instanceof Message
+          ? { tag: ctx.author?.tag, id: ctx.author?.id }
+          : ctx instanceof ChatInputCommandInteraction
+          ? { tag: ctx.user?.tag, id: ctx.user?.id }
+          : undefined
+      );
+      if (ctx instanceof ChatInputCommandInteraction) {
+        if (ctx.replied || ctx.deferred) {
+          await ctx.editReply({ embeds: [embed], components: [] });
+        } else {
+          await ctx.reply({ embeds: [embed], ephemeral: true });
+        }
+      } else if (ctx instanceof Message) {
+        await ctx.reply({ embeds: [embed] });
+      }
+      return;
+    }
+
     if (ctx instanceof ChatInputCommandInteraction) {
       if (ctx.deferred && !ctx.replied) {
         await ctx.editReply({

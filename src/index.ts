@@ -24,6 +24,7 @@ export const client = new Client({
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildMessageReactions,
     GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.DirectMessages,
   ],
   partials: [
     Partials.Message,

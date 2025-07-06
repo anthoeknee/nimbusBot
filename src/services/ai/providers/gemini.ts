@@ -13,9 +13,13 @@ import {
   AIReasoningRequest,
   AIReasoningResponse,
 } from "../../../types/ai";
-import { BaseAIProvider } from "../BaseAIProvider";
+import { BaseAIProvider } from "./BaseAIProvider";
+import { config } from "../../../config";
 
-export class GeminiProvider extends BaseAIProvider implements AIProviderInterface {
+export class GeminiProvider
+  extends BaseAIProvider
+  implements AIProviderInterface
+{
   constructor() {
     super("GEMINI_API_KEY");
   }
@@ -31,11 +35,15 @@ export class GeminiProvider extends BaseAIProvider implements AIProviderInterfac
   private BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
 
   // Helper: Fetch media from URL and convert to base64
-  async fetchMediaAsBase64(url: string): Promise<{ data: string; mimeType: string }> {
+  async fetchMediaAsBase64(
+    url: string
+  ): Promise<{ data: string; mimeType: string }> {
     try {
       const response = await fetch(url);
       if (!response.ok) {
-        throw new Error(`Failed to fetch media from URL: ${response.statusText}`);
+        throw new Error(
+          `Failed to fetch media from URL: ${response.statusText}`
+        );
       }
 
       const arrayBuffer = await response.arrayBuffer();
@@ -139,35 +147,6 @@ export class GeminiProvider extends BaseAIProvider implements AIProviderInterfac
     return contents;
   }
 
-  // Helper: Convert Gemini response to universal format
-  function fromGeminiChatResponse(data: any, model: string): AIChatResponse {
-    // Gemini's response is a bit different; we adapt it to your AIChatResponse
-    return {
-      id: data.candidate_id || data.id || "",
-      object: "chat.completion",
-      created: Math.floor(Date.now() / 1000),
-      model,
-      choices: [
-        {
-          index: 0,
-          message: {
-            role: "assistant",
-            content:
-              data.candidates?.[0]?.content?.parts?.[0]?.text || data.text || "",
-          },
-          finish_reason: data.candidates?.[0]?.finishReason || "stop",
-        },
-      ],
-      usage: data.usage
-        ? {
-            prompt_tokens: data.usage.promptTokens,
-            completion_tokens: data.usage.completionTokens,
-            total_tokens: data.usage.totalTokens,
-          }
-        : undefined,
-    };
-  }
-
   async chat(request: AIChatRequest): Promise<AIChatResponse> {
     // Use a powerful multimodal model by default
     const model = request.model || "gemini-1.5-pro-latest";
@@ -265,8 +244,75 @@ export class GeminiProvider extends BaseAIProvider implements AIProviderInterfac
     BaseAIProvider.notImplemented("embeddings", "Gemini");
   }
 
-  async speechToText(request: AISpeechToTextRequest): Promise<AISpeechToTextResponse> {
-    BaseAIProvider.notImplemented("speech-to-text", "Gemini");
+  async speechToText(
+    request: AISpeechToTextRequest
+  ): Promise<AISpeechToTextResponse> {
+    // Gemini API: Use multimodal chat endpoint for audio transcription
+    // See: https://ai.google.dev/gemini-api/docs/audio-generation
+    const model = request.model || "gemini-1.5-pro-latest";
+    const url = `${this.BASE_URL}/models/${model}:generateContent?key=${this.apiKey}`;
+    try {
+      // Convert audio input to base64
+      let audioData: string;
+      let mimeType = request.mimeType || "audio/wav";
+      if (typeof request.audio === "string") {
+        // Assume base64 string
+        audioData = request.audio;
+      } else if (
+        request.audio instanceof Uint8Array ||
+        request.audio instanceof Buffer
+      ) {
+        audioData = Buffer.from(request.audio).toString("base64");
+      } else if (request.audio instanceof ArrayBuffer) {
+        audioData = Buffer.from(request.audio).toString("base64");
+      } else {
+        throw new Error("Unsupported audio type for Gemini speechToText");
+      }
+      const contents = [
+        {
+          role: "user",
+          parts: [
+            {
+              inline_data: {
+                mime_type: mimeType,
+                data: audioData,
+              },
+            },
+          ],
+        },
+      ];
+      const body = {
+        contents,
+        generationConfig: {
+          temperature: 0.2,
+          maxOutputTokens: 1024,
+        },
+      };
+      const res = await fetch(url, {
+        method: "POST",
+        headers: this.getHeaders(),
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(
+          `Gemini speechToText error: ${res.statusText} - ${errorText}`
+        );
+      }
+      const data = await res.json();
+      const transcript = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      return {
+        text: transcript,
+        language: undefined, // Gemini does not return language code
+        raw: data,
+      };
+    } catch (error) {
+      throw new Error(
+        `Gemini speechToText failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
   }
 
   async textToSpeech(
@@ -366,7 +412,76 @@ export class GeminiProvider extends BaseAIProvider implements AIProviderInterfac
   }
 
   async vision(request: AIVisionRequest): Promise<AIVisionResponse> {
-    BaseAIProvider.notImplemented("vision", "Gemini");
+    // Gemini API: Use multimodal chat endpoint for image/video Q&A
+    // See: https://ai.google.dev/gemini-api/docs
+    const model = request.model || "gemini-1.5-pro-latest";
+    const url = `${this.BASE_URL}/models/${model}:generateContent?key=${this.apiKey}`;
+    try {
+      let mediaData: string;
+      let mimeType = request.mimeType || "image/png";
+      if (typeof request.image === "string") {
+        if (request.image.startsWith("data:")) {
+          // data URL
+          const base64 = request.image.split(",")[1];
+          mediaData = base64;
+          mimeType = request.image.split(",")[0].split(":")[1].split(";")[0];
+        } else {
+          // Assume base64 string
+          mediaData = request.image;
+        }
+      } else if (
+        request.image instanceof Uint8Array ||
+        request.image instanceof Buffer
+      ) {
+        mediaData = Buffer.from(request.image).toString("base64");
+      } else if (request.image instanceof ArrayBuffer) {
+        mediaData = Buffer.from(request.image).toString("base64");
+      } else {
+        throw new Error("Unsupported image type for Gemini vision");
+      }
+      const prompt = request.prompt || "Describe this image.";
+      const contents = [
+        {
+          role: "user",
+          parts: [
+            { text: prompt },
+            {
+              inline_data: {
+                mime_type: mimeType,
+                data: mediaData,
+              },
+            },
+          ],
+        },
+      ];
+      const body = {
+        contents,
+        generationConfig: {
+          temperature: 0.2,
+          maxOutputTokens: 1024,
+        },
+      };
+      const res = await fetch(url, {
+        method: "POST",
+        headers: this.getHeaders(),
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(
+          `Gemini vision error: ${res.statusText} - ${errorText}`
+        );
+      }
+      const data = await res.json();
+      const result = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      return { result, raw: data };
+    } catch (error) {
+      throw new Error(
+        `Gemini vision failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
   }
 
   async reasoning(request: AIReasoningRequest): Promise<AIReasoningResponse> {

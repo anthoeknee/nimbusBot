@@ -10,5 +10,6 @@
       "database": "nimbusDB",
       "username": "nimbus"
     }
-  ]
+  ],
+  "npm.packageManager": "bun"
 }

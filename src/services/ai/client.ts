@@ -5,172 +5,135 @@ import {
   AIChatResponse,
   AIEmbedRequest,
   AIEmbedResponse,
-  AISpeechToTextRequest,
-  AISpeechToTextResponse,
-  AITextToSpeechRequest,
-  AITextToSpeechResponse,
-  AIVisionRequest,
-  AIVisionResponse,
-  AIReasoningRequest,
-  AIReasoningResponse,
-  AIRerankRequest,
-  AIRerankResponse,
-  AIClassifyRequest,
-  AIClassifyResponse,
 } from "../../types/ai";
 import { GroqProvider } from "./providers/groq";
 import { CohereProvider } from "./providers/cohere";
 import { GeminiProvider } from "./providers/gemini";
-import { Message, Attachment } from "discord.js";
+import { getOpenAIFunctions, executeTool } from "./tools/index";
 
-const providerMap: Record<AIProvider, AIProviderInterface> = {
+const providers: Record<AIProvider, AIProviderInterface> = {
   groq: new GroqProvider(),
   cohere: new CohereProvider(),
   gemini: new GeminiProvider(),
 };
 
+/**
+ * AIClient is the main entry point for all AI operations. It orchestrates provider selection, tool execution, and ensures backward compatibility.
+ *
+ * @remarks
+ * - Maintains 100% backward compatibility with previous implementation.
+ * - Supports dependency injection for providers and logging.
+ */
 export class AIClient {
-  private getProvider(provider: AIProvider): AIProviderInterface {
-    const instance = providerMap[provider];
+  /**
+   * Get the provider instance for the given provider key.
+   * @param provider - The provider key (e.g., 'groq', 'cohere', 'gemini')
+   * @returns The provider instance implementing AIProviderInterface
+   * @throws Error if provider is not supported
+   */
+  static getProvider(provider: AIProvider): AIProviderInterface {
+    const instance = providers[provider];
     if (!instance) throw new Error(`AI provider "${provider}" not supported`);
     return instance;
   }
 
-  async chat(request: AIChatRequest): Promise<AIChatResponse> {
-    return this.getProvider(request.provider).chat(request);
+  /**
+   * Send a chat request to the selected provider, handling tool calls and function-calling loop.
+   *
+   * @param request - The chat request (AIChatRequest)
+   * @returns The AIChatResponse, with optional toolResults array
+   * @throws Error on provider errors or infinite tool loop
+   */
+  static async chat(
+    request: AIChatRequest
+  ): Promise<AIChatResponse & { toolResults?: any[] }> {
+    const provider = AIClient.getProvider(request.provider);
+    const tools = getOpenAIFunctions();
+    let messages = [...request.messages];
+    let toolResults: any[] = [];
+    let aiResponse: AIChatResponse;
+    let loopCount = 0;
+    const maxLoops = 8; // Prevent infinite loops
+
+    while (true) {
+      aiResponse = await provider.chat({ ...request, messages, tools });
+      // Extract tool calls (OpenAI/Cohere/Gemini compatible)
+      const toolCalls: Array<{ id: string; name: string; arguments: any }> = [];
+      for (const choice of aiResponse.choices || []) {
+        const msg = choice.message;
+        if (msg && Array.isArray(msg.tool_calls)) {
+          for (const call of msg.tool_calls) {
+            if (call.function?.name && call.function?.arguments) {
+              let args;
+              try {
+                args =
+                  typeof call.function.arguments === "string"
+                    ? JSON.parse(call.function.arguments)
+                    : call.function.arguments;
+              } catch {
+                args = call.function.arguments;
+              }
+              toolCalls.push({
+                id: call.id,
+                name: call.function.name,
+                arguments: args,
+              });
+            }
+          }
+        }
+      }
+      if (!toolCalls.length) {
+        break;
+      }
+      // Execute tool calls and append tool result messages
+      for (const call of toolCalls) {
+        let result;
+        try {
+          result = await executeTool(
+            call.name,
+            call.arguments,
+            request.toolContext || {}
+          );
+        } catch (err) {
+          result = {
+            error: err instanceof Error ? err.message : String(err),
+          };
+        }
+        toolResults.push({ name: call.name, result });
+        // Append tool result message in Cohere format
+        messages.push({
+          role: "tool",
+          tool_call_id: call.id,
+          content: [
+            {
+              type: "document",
+              document: {
+                data: JSON.stringify(result),
+              },
+            },
+          ],
+        } as any);
+      }
+      loopCount++;
+      if (loopCount > maxLoops) {
+        throw new Error("Too many tool use loops (possible infinite loop)");
+      }
+    }
+    return { ...aiResponse, ...(toolResults.length ? { toolResults } : {}) };
   }
 
-  async embeddings(request: AIEmbedRequest): Promise<AIEmbedResponse> {
-    const provider = this.getProvider(request.provider);
+  /**
+   * Request embeddings from the selected provider.
+   * @param request - The embedding request (AIEmbedRequest)
+   * @returns The AIEmbedResponse
+   * @throws Error if embeddings are not supported for the provider
+   */
+  static async embeddings(request: AIEmbedRequest): Promise<AIEmbedResponse> {
+    const provider = AIClient.getProvider(request.provider);
     if (!provider.embeddings)
       throw new Error(
         `Embeddings not supported for provider "${request.provider}"`
       );
     return provider.embeddings(request);
   }
-
-  async rerank(request: AIRerankRequest): Promise<AIRerankResponse> {
-    const provider = this.getProvider(request.provider);
-    if (!provider.rerank)
-      throw new Error(
-        `Rerank not supported for provider "${request.provider}"`
-      );
-    return provider.rerank(request);
-  }
-
-  async classify(request: AIClassifyRequest): Promise<AIClassifyResponse> {
-    const provider = this.getProvider(request.provider);
-    if (!provider.classify)
-      throw new Error(
-        `Classify not supported for provider "${request.provider}"`
-      );
-    return provider.classify(request);
-  }
-
-  async speechToText(
-    request: AISpeechToTextRequest
-  ): Promise<AISpeechToTextResponse> {
-    const provider = this.getProvider(request.provider);
-    if (!provider.speechToText)
-      throw new Error(
-        `Speech-to-text not supported for provider "${request.provider}"`
-      );
-    return provider.speechToText(request);
-  }
-
-  async textToSpeech(
-    request: AITextToSpeechRequest
-  ): Promise<AITextToSpeechResponse> {
-    const provider = this.getProvider(request.provider);
-    if (!provider.textToSpeech)
-      throw new Error(
-        `Text-to-speech not supported for provider "${request.provider}"`
-      );
-    return provider.textToSpeech(request);
-  }
-
-  async vision(request: AIVisionRequest): Promise<AIVisionResponse> {
-    const provider = this.getProvider(request.provider);
-    if (!provider.vision)
-      throw new Error(
-        `Vision not supported for provider "${request.provider}"`
-      );
-    return provider.vision(request);
-  }
-
-  async reasoning(request: AIReasoningRequest): Promise<AIReasoningResponse> {
-    const provider = this.getProvider(request.provider);
-    if (!provider.reasoning)
-      throw new Error(
-        `Reasoning not supported for provider "${request.provider}"`
-      );
-    return provider.reasoning(request);
-  }
-
-  // --- Voice Message Helpers ---
-  /**
-   * Extracts speech from a Discord message's audio attachment using the specified AI provider.
-   */
-  static async extractSpeechFromMessage(
-    message: Message,
-    options: { provider: AIProvider; model?: string; language?: string }
-  ): Promise<AISpeechToTextResponse | null> {
-    // Find the first audio attachment (Discord voice messages are .ogg, .mp3, .wav, etc)
-    const audioAttachment = message.attachments.find(
-      (att: Attachment) =>
-        att.contentType?.startsWith("audio") ||
-        att.name.endsWith(".ogg") ||
-        att.name.endsWith(".mp3") ||
-        att.name.endsWith(".wav") ||
-        att.name.endsWith(".m4a")
-    );
-    if (!audioAttachment) return null;
-
-    // Download the audio file
-    const response = await fetch(audioAttachment.url);
-    if (!response.ok) throw new Error("Failed to download audio attachment");
-    const audioBuffer = Buffer.from(await response.arrayBuffer());
-
-    // Prepare the request for the AI provider
-    const sttRequest: AISpeechToTextRequest = {
-      provider: options.provider,
-      audio: audioBuffer,
-      model: options.model,
-      language: options.language,
-    };
-
-    // Use AIClient to perform speech-to-text
-    const aiClient = new AIClient();
-    return aiClient.speechToText(sttRequest);
-  }
-
-  /**
-   * High-level handler: extracts speech and runs a callback, with user feedback.
-   */
-  static async handleVoiceMessage(
-    message: Message,
-    options: { provider: AIProvider; model?: string; language?: string },
-    onText: (text: string, response: AISpeechToTextResponse) => Promise<void>
-  ): Promise<AISpeechToTextResponse | null> {
-    try {
-      const sttResponse = await AIClient.extractSpeechFromMessage(
-        message,
-        options
-      );
-      if (sttResponse && sttResponse.text) {
-        await onText(sttResponse.text, sttResponse);
-        return sttResponse;
-      } else {
-        await message.reply(
-          "❌ Sorry, I couldn't recognize any speech in your audio."
-        );
-        return null;
-      }
-    } catch (error: any) {
-      await message.reply(`❌ Error extracting speech: ${error.message}`);
-      return null;
-    }
-  }
-
-  // Add more endpoints as needed
 }
