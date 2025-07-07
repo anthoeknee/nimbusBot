@@ -4,6 +4,13 @@ import { join, extname } from "path";
 import { Command } from "../types/command";
 import { Event } from "../types/event";
 import { logger } from "./logger";
+import {
+  applyCommandPipeline,
+  applyEventPipeline,
+  errorHandler,
+  executionLock,
+  permissions as permissionsMiddleware,
+} from "../middleware/commandPipeline";
 
 /**
  * Recursively walks a directory and returns all TypeScript/JavaScript files
@@ -53,11 +60,28 @@ export async function loadCommands(): Promise<Map<string, Command>> {
       const command = module.default || module.command;
 
       if (command && command.meta && command.data && command.execute) {
-        commands.set(command.meta.name, command);
+        // --- Build pipeline ---
+        const pipeline = [
+          errorHandler(),
+          executionLock((ctx) =>
+            ctx.isInteraction
+              ? `int_${ctx.raw.id}`
+              : ctx.isMessage
+                ? `msg_${ctx.raw.id}`
+                : `cmd_${command.meta.name}`
+          ),
+        ];
+        if (command.meta.permissions && command.meta.permissions.length > 0) {
+          pipeline.push(permissionsMiddleware(command.meta.permissions));
+        }
+        commands.set(
+          command.meta.name,
+          applyCommandPipeline(command, pipeline)
+        );
         logger.debug(`Loaded command: ${command.meta.name}`);
       } else {
         logger.warn(
-          `Invalid command module at ${file}: missing required properties`,
+          `Invalid command module at ${file}: missing required properties`
         );
       }
     } catch (error) {
@@ -83,11 +107,22 @@ export async function loadEvents(): Promise<Event<any>[]> {
       const event = module.default || module.event;
 
       if (event && event.name && event.execute) {
-        events.push(event);
+        // --- Build pipeline ---
+        const pipeline = [
+          errorHandler(),
+          executionLock((ctx) =>
+            ctx.isInteraction
+              ? `int_${ctx.raw.id}`
+              : ctx.isMessage
+                ? `msg_${ctx.raw.id}`
+                : `evt_${event.name}`
+          ),
+        ];
+        events.push(applyEventPipeline(event, pipeline));
         logger.debug(`Loaded event: ${event.name}`);
       } else {
         logger.warn(
-          `Invalid event module at ${file}: missing required properties`,
+          `Invalid event module at ${file}: missing required properties`
         );
       }
     } catch (error) {

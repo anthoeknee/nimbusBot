@@ -7,6 +7,11 @@ import { Command } from "./types/command";
 import { serviceErrorHandler } from "./middleware/errorHandler";
 import { logger } from "./utils/logger";
 import { logMemorySystemStatus } from "./utils/validateMemorySystem";
+import {
+  decideMemoryAction,
+  analyzeConversationContext,
+  analyzeTemporalPatterns,
+} from "./memory/decision";
 
 export interface ExtendedClient extends Client {
   commands: Collection<string, Command>;
@@ -41,16 +46,16 @@ async function syncCommandsOnStartup() {
 
   // Split commands into global and guild-only
   const globalCommands = Array.from(commands.values()).filter(
-    (cmd) => !cmd.meta.guildOnly,
+    (cmd) => !cmd.meta.guildOnly
   );
   const guildCommands = Array.from(commands.values()).filter(
-    (cmd) => cmd.meta.guildOnly,
+    (cmd) => cmd.meta.guildOnly
   );
 
   // Register global commands
   if (globalCommands.length > 0) {
     await client.application?.commands.set(
-      globalCommands.map((cmd) => cmd.data.toJSON()),
+      globalCommands.map((cmd) => cmd.data.toJSON())
     );
     console.log(`Synced ${globalCommands.length} global commands.`);
   }
@@ -60,7 +65,7 @@ async function syncCommandsOnStartup() {
     for (const guild of client.guilds.cache.values()) {
       await guild.commands.set(guildCommands.map((cmd) => cmd.data.toJSON()));
       console.log(
-        `Synced ${guildCommands.length} guild-only commands for guild ${guild.name} (${guild.id})`,
+        `Synced ${guildCommands.length} guild-only commands for guild ${guild.name} (${guild.id})`
       );
     }
   }
@@ -82,12 +87,12 @@ async function main() {
       if (event.once) {
         client.once(
           event.name,
-          serviceErrorHandler((...args) => event.execute(...args), event.name),
+          serviceErrorHandler((...args) => event.execute(...args), event.name)
         );
       } else {
         client.on(
           event.name,
-          serviceErrorHandler((...args) => event.execute(...args), event.name),
+          serviceErrorHandler((...args) => event.execute(...args), event.name)
         );
       }
     }

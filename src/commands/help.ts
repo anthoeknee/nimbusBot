@@ -19,7 +19,12 @@ import {
   GatewayIntentBits,
 } from "discord.js";
 import { Command } from "../types/command";
-import { commandErrorHandler } from "../middleware/errorHandler";
+import {
+  getCommandsByCategory,
+  sendSpecificCommandHelp,
+  sendGeneralHelp,
+} from "../utils/helpUtils";
+import { handleError } from "../utils/errorHandler";
 
 const COMMANDS_PER_PAGE = 5;
 
@@ -42,15 +47,14 @@ const command: Command = {
       option
         .setName("command")
         .setDescription("Get detailed help for a specific command")
-        .setRequired(false),
+        .setRequired(false)
     ) as SlashCommandBuilder,
 
-  execute: commandErrorHandler(
-    async (
-      interaction: ChatInputCommandInteraction | Message,
-      context?: { args?: string[] },
-    ) => {
-      // Handle specific command help if requested
+  async execute(
+    interaction: ChatInputCommandInteraction | Message,
+    context?: { args?: string[] }
+  ) {
+    try {
       if (interaction instanceof ChatInputCommandInteraction) {
         const commandName = interaction.options.getString("command");
         if (commandName) {
@@ -61,19 +65,18 @@ const command: Command = {
         await sendSpecificCommandHelp(interaction, context.args[0]);
         return;
       }
-
-      // Show general help
       await sendGeneralHelp(interaction);
-    },
-    "help",
-  ),
+    } catch (error) {
+      await handleError(interaction, error);
+    }
+  },
 };
 
 async function showCategoryPage(
   interaction: StringSelectMenuInteraction | ButtonInteraction,
   commands: Command[],
   category: string,
-  page: number,
+  page: number
 ) {
   const totalPages = Math.ceil(commands.length / COMMANDS_PER_PAGE);
   const start = page * COMMANDS_PER_PAGE;
@@ -86,9 +89,9 @@ async function showCategoryPage(
       pageCommands
         .map(
           (cmd, i) =>
-            `**${start + i + 1}.** \`/${cmd.meta.name}\` - ${cmd.meta.description}`,
+            `**${start + i + 1}.** \`/${cmd.meta.name}\` - ${cmd.meta.description}`
         )
-        .join("\n") || "No commands in this category.",
+        .join("\n") || "No commands in this category."
     )
     .setFooter({ text: `Page ${page + 1} of ${totalPages}` })
     .setColor(0x5865f2);
@@ -112,12 +115,12 @@ async function showCategoryPage(
     new ButtonBuilder()
       .setCustomId(`details_${start + i}`)
       .setLabel(`${cmd.meta.name}`)
-      .setStyle(ButtonStyle.Primary),
+      .setStyle(ButtonStyle.Primary)
   );
 
   const navRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
     ...navButtons,
-    ...detailButtons,
+    ...detailButtons
   );
 
   await interaction.update({
@@ -151,7 +154,7 @@ async function showCategoryPage(
               new ButtonBuilder()
                 .setCustomId("back_to_list")
                 .setLabel("← Back")
-                .setStyle(ButtonStyle.Secondary),
+                .setStyle(ButtonStyle.Secondary)
             ),
           ],
         });
@@ -211,7 +214,7 @@ async function sendGeneralHelp(target: ChatInputCommandInteraction | Message) {
   const mainEmbed = new EmbedBuilder()
     .setTitle("🤖 Bot Help")
     .setDescription(
-      "Select a category below to view commands, or use `/help <command>` for detailed help.",
+      "Select a category below to view commands, or use `/help <command>` for detailed help."
     )
     .setColor(0x5865f2)
     .addFields(
@@ -219,7 +222,7 @@ async function sendGeneralHelp(target: ChatInputCommandInteraction | Message) {
         name: `${getCategoryEmoji(category)} ${category}`,
         value: `${categories[category].length} command${categories[category].length !== 1 ? "s" : ""}`,
         inline: true,
-      })),
+      }))
     )
     .setFooter({
       text: `Total: ${(client as ExtendedClient).commands?.size || 0} commands`,
@@ -242,7 +245,7 @@ async function sendGeneralHelp(target: ChatInputCommandInteraction | Message) {
       const commandList = commands
         .map(
           (cmd) =>
-            `\`/${cmd.meta.name}\` - ${cmd.meta.description || "No description"}`,
+            `\`/${cmd.meta.name}\` - ${cmd.meta.description || "No description"}`
         )
         .join("\n");
 
@@ -275,7 +278,7 @@ async function sendGeneralHelp(target: ChatInputCommandInteraction | Message) {
         value: category,
         description: `View ${categories[category].length} command${categories[category].length !== 1 ? "s" : ""} in ${category}`,
         emoji: getCategoryEmoji(category),
-      })),
+      }))
     );
 
   const selectRow =
@@ -323,10 +326,10 @@ async function sendGeneralHelp(target: ChatInputCommandInteraction | Message) {
 
       const categoryEmbed = new EmbedBuilder()
         .setTitle(
-          `${getCategoryEmoji(selectedCategory)} ${selectedCategory} Commands`,
+          `${getCategoryEmoji(selectedCategory)} ${selectedCategory} Commands`
         )
         .setDescription(
-          `Here are all the commands in the **${selectedCategory}** category:`,
+          `Here are all the commands in the **${selectedCategory}** category:`
         )
         .setColor(0x5865f2)
         .addFields(
@@ -334,7 +337,7 @@ async function sendGeneralHelp(target: ChatInputCommandInteraction | Message) {
             name: `/${cmd.meta.name}`,
             value: `${cmd.meta.description || "No description provided"}\n\`Usage: /${cmd.meta.name}\``,
             inline: false,
-          })),
+          }))
         )
         .setFooter({
           text: `${categoryCommands.length} command${categoryCommands.length !== 1 ? "s" : ""} | Use /help <command> for detailed help`,
@@ -348,7 +351,7 @@ async function sendGeneralHelp(target: ChatInputCommandInteraction | Message) {
         .setStyle(ButtonStyle.Secondary);
 
       const buttonRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-        backButton,
+        backButton
       );
 
       await selectInteraction.update({
@@ -372,9 +375,9 @@ async function sendGeneralHelp(target: ChatInputCommandInteraction | Message) {
               components: [selectRow],
             });
           }
-        },
+        }
       );
-    },
+    }
   );
 
   collector.on("end", async () => {
@@ -395,7 +398,7 @@ function getCommandsCollection(client: ExtendedClient) {
 
 async function sendSpecificCommandHelp(
   target: ChatInputCommandInteraction | Message,
-  commandName: string,
+  commandName: string
 ) {
   const client = target.client as ExtendedClient;
   const commandsCollection = getCommandsCollection(client);
@@ -407,7 +410,7 @@ async function sendSpecificCommandHelp(
       .filter(
         (cmd: Command) =>
           cmd.meta.name.toLowerCase().includes(commandName.toLowerCase()) ||
-          commandName.toLowerCase().includes(cmd.meta.name.toLowerCase()),
+          commandName.toLowerCase().includes(cmd.meta.name.toLowerCase())
       )
       .slice(0, 5);
 
@@ -415,7 +418,7 @@ async function sendSpecificCommandHelp(
       const embed = new EmbedBuilder()
         .setTitle("❌ Command Not Found")
         .setDescription(
-          `Command \`${commandName}\` not found. Did you mean one of these?`,
+          `Command \`${commandName}\` not found. Did you mean one of these?`
         )
         .setColor(0xff0000)
         .addFields({
@@ -423,7 +426,7 @@ async function sendSpecificCommandHelp(
           value: similarCommands
             .map(
               (cmd: Command) =>
-                `\`/${cmd.meta.name}\` - ${cmd.meta.description}`,
+                `\`/${cmd.meta.name}\` - ${cmd.meta.description}`
             )
             .join("\n"),
           inline: false,
@@ -471,7 +474,7 @@ async function sendSpecificCommandHelp(
         name: "Usage",
         value: `\`/${command.meta.name}\``,
         inline: true,
-      },
+      }
     )
     .setTimestamp();
 

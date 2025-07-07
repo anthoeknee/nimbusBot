@@ -18,7 +18,7 @@ let enhancedMemoryRepository: any = null;
  * Initialize the enhanced memory repository (replaces old MemoryDatabase)
  */
 export async function initializeMemoryDatabase(
-  mainDatabase?: any,
+  mainDatabase?: any
 ): Promise<any> {
   if (enhancedMemoryRepository) {
     return enhancedMemoryRepository;
@@ -31,14 +31,14 @@ export async function initializeMemoryDatabase(
     // Verify the memory system is working correctly
     const testCount = await enhancedMemoryRepository.count();
     logger.info(
-      `Enhanced memory repository initialized successfully with ${testCount} existing memories`,
+      `Enhanced memory repository initialized successfully with ${testCount} existing memories`
     );
 
     return enhancedMemoryRepository;
   } catch (error) {
     logger.error("Failed to initialize enhanced memory repository:", error);
     throw new Error(
-      `Enhanced memory repository initialization failed: ${error.message}`,
+      `Enhanced memory repository initialization failed: ${error.message}`
     );
   }
 }
@@ -63,7 +63,7 @@ export const getEnhancedMemoryRepository = getMemoryDatabase;
  * Create a new enhanced memory manager with default configuration
  */
 export function createMemoryManager(
-  config?: Partial<any>,
+  config?: Partial<any>
 ): EnhancedMemoryManager {
   // Import default config from unified types
   const { DEFAULT_MEMORY_CONFIG } = require("../../../types/memory");
@@ -102,7 +102,7 @@ export async function initializeMemorySystem(mainDatabase?: any): Promise<{
   } catch (error) {
     logger.error("Failed to initialize unified memory system:", error);
     throw new Error(
-      `Unified memory system initialization failed: ${error.message}`,
+      `Unified memory system initialization failed: ${error.message}`
     );
   }
 }
@@ -119,195 +119,9 @@ export async function shutdownMemorySystem(): Promise<void> {
   logger.info("Unified memory system shutdown complete");
 }
 
-/**
- * Enhanced database service that integrates with the unified memory system
- * @deprecated Use database.memories (EnhancedMemoryRepository) directly
- */
-export class EnhancedDatabaseService {
-  private memoryRepository: any;
-  private mainDatabase: any;
-
-  constructor(mainDatabase: any, memoryRepository: any) {
-    this.mainDatabase = mainDatabase;
-    this.memoryRepository = memoryRepository;
-  }
-
-  /**
-   * Create a memory with embedding and enhanced metadata
-   */
-  async createMemory(
-    content: string,
-    embedding: number[],
-    options: {
-      userId?: number;
-      guildId?: number;
-      importance?: number;
-      tags?: string[];
-      metadata?: Record<string, any>;
-    } = {},
-  ) {
-    return this.memoryRepository.createWithEmbedding(
-      content,
-      embedding,
-      options.userId,
-      options.guildId,
-      {
-        importance: options.importance,
-        tags: options.tags,
-        metadata: options.metadata,
-      },
-    );
-  }
-
-  /**
-   * Search memories with enhanced options
-   */
-  async searchMemories(
-    queryEmbedding: number[],
-    options: {
-      userId?: number;
-      guildId?: number;
-      topK?: number;
-      minSimilarity?: number;
-      tags?: string[];
-      importanceThreshold?: number;
-    } = {},
-  ) {
-    return this.memoryRepository.findSimilar(queryEmbedding, options);
-  }
-
-  /**
-   * Get memory analytics
-   */
-  async getMemoryAnalytics() {
-    return this.memoryRepository.getAnalytics();
-  }
-
-  /**
-   * Clean up old memories
-   */
-  async cleanupOldMemories(maxAgeDays: number = 90, minImportance: number = 1) {
-    const deletedCount = await this.memoryRepository.deleteOldMemories(
-      maxAgeDays,
-      minImportance,
-    );
-
-    logger.info(`Cleaned up ${deletedCount} old memories`);
-    return deletedCount;
-  }
-
-  /**
-   * Get memory by ID
-   */
-  async getMemoryById(id: string) {
-    return this.memoryRepository.findByIdParsed(parseInt(id));
-  }
-
-  /**
-   * Update memory access patterns
-   */
-  async updateMemoryAccess(id: string) {
-    return this.memoryRepository.updateAccess(id);
-  }
-
-  /**
-   * Apply memory decay
-   */
-  async applyMemoryDecay(decayFactor: number = 0.95) {
-    return this.memoryRepository.decayScores(decayFactor);
-  }
-
-  /**
-   * Find memories that can be consolidated
-   */
-  async findConsolidationCandidates(similarityThreshold: number = 0.85) {
-    return this.memoryRepository.findConsolidationCandidates(
-      similarityThreshold,
-    );
-  }
-
-  /**
-   * Count total memories
-   */
-  async countMemories() {
-    return this.memoryRepository.count();
-  }
-
-  /**
-   * Update memory metadata
-   */
-  async updateMemoryMetadata(id: string, metadata: Record<string, any>) {
-    return this.memoryRepository.updateMetadata(id, metadata);
-  }
-
-  /**
-   * Get the main database instance (for backward compatibility)
-   */
-  getMainDatabase() {
-    return this.mainDatabase;
-  }
-
-  /**
-   * Get the enhanced memory repository instance
-   */
-  getMemoryRepository() {
-    return this.memoryRepository;
-  }
-
-  /**
-   * @deprecated Use getMemoryRepository() instead
-   */
-  getMemoryDatabase() {
-    return this.memoryRepository;
-  }
-}
-
-/**
- * Factory function to create an enhanced database service
- */
-/**
- * @deprecated Use database.memories directly instead
- */
-export async function createEnhancedDatabaseService(
-  mainDatabase?: any,
-): Promise<EnhancedDatabaseService> {
-  const memoryRepo = await initializeMemoryDatabase();
-  return new EnhancedDatabaseService(mainDatabase || database, memoryRepo);
-}
-
-/**
- * Utility function to migrate existing memories to enhanced format
- */
-export async function migrateLegacyMemories(
-  legacyDatabase: any,
-  enhancedRepository: any,
-): Promise<void> {
-  try {
-    // This would be implemented based on the existing memory table structure
-    logger.info("Starting legacy memory migration...");
-
-    // Example migration logic:
-    // const legacyMemories = legacyDatabase.prepare("SELECT * FROM old_memories").all();
-    // for (const memory of legacyMemories) {
-    //   await enhancedRepository.createWithEmbedding(
-    //     memory.content,
-    //     JSON.parse(memory.embedding),
-    //     memory.userId,
-    //     memory.guildId,
-    //     {
-    //       importance: memory.importance || 5,
-    //       tags: [],
-    //       metadata: {}
-    //     }
-    //   );
-    // }
-
-    logger.info("Legacy memory migration completed");
-  } catch (error) {
-    logger.error("Failed to migrate legacy memories:", error);
-    throw new Error("Legacy memory migration failed");
-  }
-}
+// NOTE: The EnhancedDatabaseService and related service-layer abstractions have been removed.
+//       Use the direct repository classes (e.g., database.memories) for all database operations.
+//       This ensures maximum clarity, maintainability, and type safety.
 
 /**
  * Validate memory system health
@@ -352,12 +166,12 @@ export async function validateMemorySystemHealth(): Promise<{
         "accessCount",
       ];
       const missingColumns = requiredMemoryColumns.filter(
-        (col) => !tableStructure.memoriesColumns.includes(col),
+        (col) => !tableStructure.memoriesColumns.includes(col)
       );
 
       if (missingColumns.length > 0) {
         issues.push(
-          `Missing required columns in memories table: ${missingColumns.join(", ")}`,
+          `Missing required columns in memories table: ${missingColumns.join(", ")}`
         );
       }
 
@@ -368,7 +182,7 @@ export async function validateMemorySystemHealth(): Promise<{
     if (stats.totalMemories === 0) {
       // This is not necessarily an issue for a new system
       logger.debug(
-        "No memories found in database - this is normal for a new installation",
+        "No memories found in database - this is normal for a new installation"
       );
     }
 

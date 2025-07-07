@@ -33,37 +33,30 @@ import {
   assessMemoryQuality,
 } from "./memory/curation";
 import {
-  makeMemoryDecision,
+  decideMemoryAction,
   analyzeConversationContext,
-  evaluateMemoryRelevance,
-  mapMemoryRelationships,
   analyzeTemporalPatterns,
 } from "./memory/decision";
+import { mapMemoryRelationships } from "./memory/relationships";
 import {
-  createMemoryRelationship,
   findRelatedMemories,
-  mapMemoryNetwork,
   analyzeRelationshipPatterns,
-  suggestMemoryConnections,
 } from "./memory/relationships";
-// import { anotherTool } from "./anotherTool";
-// ...etc
 
-const toolList: ToolDefinition[] = [
+// Export all tools as a flat array or object as needed
+export const allTools: ToolDefinition[] = [
   getWeather,
   saveLongTermMemory,
   searchLongTermMemory,
   getConversationStats,
   clearConversationContext,
   getMemoryAnalytics,
-  // Advanced memory tools
   analyzeConversationForMemory,
   saveStructuredMemory,
   getMemoryInsights,
   consolidateMemories,
   searchMemoriesByCategory,
   manualMemoryTransfer,
-  // Configuration tools
   configureMemorySystem,
   setMemoryPermissions,
   addMemoryCategory,
@@ -71,30 +64,19 @@ const toolList: ToolDefinition[] = [
   enableToolDrivenMode,
   resetMemoryConfiguration,
   validateMemoryConfiguration,
-  // Memory curation tools
   analyzeMemoryWorthiness,
   curateMemoryCollection,
   generateMemoryRecommendations,
   assessMemoryQuality,
-  // Memory decision tools
-  makeMemoryDecision,
-  analyzeConversationContext,
-  evaluateMemoryRelevance,
+  decideMemoryAction,
   mapMemoryRelationships,
-  analyzeTemporalPatterns,
-  // Memory relationship tools
-  createMemoryRelationship,
   findRelatedMemories,
-  mapMemoryNetwork,
   analyzeRelationshipPatterns,
-  suggestMemoryConnections,
-  // anotherTool,
-  // ...etc
 ];
 
 // Registry
 const toolRegistry = new Map<string, ToolDefinition>();
-for (const tool of toolList) {
+for (const tool of allTools) {
   if (toolRegistry.has(tool.name)) {
     throw new Error(`Duplicate tool name: ${tool.name}`);
   }
@@ -125,7 +107,7 @@ export function toolToOpenAIFunction(tool: ToolDefinition) {
             ...(param.enum ? { enum: param.enum } : {}),
             ...(param.default !== undefined ? { default: param.default } : {}),
           },
-        ]),
+        ])
       ),
       required: tool.parameters.filter((p) => p.required).map((p) => p.name),
     },
@@ -139,7 +121,7 @@ export function getOpenAIFunctions() {
 export async function executeTool(
   name: string,
   args: any,
-  context: any,
+  context: any
 ): Promise<any> {
   const tool = getTool(name);
   if (!tool) throw new Error(`Tool '${name}' not found`);

@@ -1,52 +1,48 @@
-import { BaseRepository } from "./base-repository";
-import { UserRow, CreateUserInput, UpdateUserInput, EntityId } from "../types";
+import { db } from "../client";
+import { UserRow, CreateUserInput, UpdateUserInput } from "../types";
+import { logger } from "../../../utils/logger";
 
-export class UserRepository extends BaseRepository<
-  UserRow,
-  CreateUserInput,
-  UpdateUserInput
-> {
-  protected readonly tableName = "users";
+export class UserRepository {
+  private readonly table = "users";
 
   async findByDiscordId(discordId: string): Promise<UserRow | null> {
-    try {
-      const stmt = this.db.prepare("SELECT * FROM users WHERE discordId = ?");
-      const result = stmt.get(discordId) as UserRow | undefined;
-      return result || null;
-    } catch (error) {
-      throw new Error(`Failed to find user by Discord ID: ${error}`);
-    }
+    const stmt = db.prepare(`SELECT * FROM users WHERE discordId = ?`);
+    return stmt.get(discordId) as UserRow | null;
   }
 
   async findOrCreateByDiscordId(
     discordId: string,
-    userData?: Partial<CreateUserInput>,
+    userData?: Partial<CreateUserInput>
   ): Promise<UserRow> {
-    const existingUser = await this.findByDiscordId(discordId);
-    if (existingUser) return existingUser;
-
-    const createData: CreateUserInput = {
+    let user = await this.findByDiscordId(discordId);
+    if (user) return user;
+    const now = new Date().toISOString();
+    const stmt = db.prepare(
+      `INSERT INTO users (discordId, username, displayName, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?) RETURNING *`
+    );
+    return stmt.get(
       discordId,
-      username: userData?.username ?? "",
-      displayName: userData?.displayName ?? "",
-    };
-    return await this.create(createData);
+      userData?.username ?? "",
+      userData?.displayName ?? "",
+      now,
+      now
+    ) as UserRow;
   }
 
   async updateByDiscordId(
     discordId: string,
-    data: UpdateUserInput,
+    data: UpdateUserInput
   ): Promise<UserRow> {
-    try {
-      const keys = Object.keys(data as object);
-      const values = Object.values(data as object);
-      const setClause = keys.map((key) => `${key} = ?`).join(", ");
-      const query = `UPDATE users SET ${setClause} WHERE discordId = ? RETURNING *`;
-      const stmt = this.db.prepare(query);
-      const result = stmt.get(...values, discordId) as UserRow;
-      return result;
-    } catch (error) {
-      throw new Error(`Failed to update user by Discord ID: ${error}`);
+    const fields = [];
+    const values = [];
+    for (const [key, value] of Object.entries(data)) {
+      fields.push(`${key} = ?`);
+      values.push(value);
     }
+    values.push(discordId);
+    const stmt = db.prepare(
+      `UPDATE users SET ${fields.join(", ")} WHERE discordId = ? RETURNING *`
+    );
+    return stmt.get(...values) as UserRow;
   }
 }

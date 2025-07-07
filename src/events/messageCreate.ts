@@ -44,12 +44,12 @@ function extractMultimodalContent(message: Message) {
 
 const event: Event<"messageCreate"> = {
   name: "messageCreate",
-  execute: eventErrorHandler(async (message: Message) => {
+  execute: async (message: Message) => {
     const isDM = message.guildId === null;
     console.log(
       `[messageCreate] Received message: ${message.content} in ${
         isDM ? "DM" : "channel"
-      } from ${message.author.tag}`,
+      } from ${message.author.tag}`
     );
     if (message.author.bot) return;
 
@@ -67,56 +67,7 @@ const event: Event<"messageCreate"> = {
         const commandName = args.shift()?.toLowerCase();
         const command = commands?.get(commandName);
         if (command) {
-          // Run as command (reuse server logic) with execution lock
-          const lockKey = `msg_${message.id}`;
-          await withExecutionLock(lockKey, async () => {
-            const startTime = Date.now();
-            try {
-              logger.debug(
-                `Processing DM command: ${message.content} from user ${message.author.tag}`,
-              );
-              // Add permission check here if needed
-              if (command.meta.permissions) {
-                const requiredPerms = Array.isArray(command.meta.permissions)
-                  ? command.meta.permissions
-                  : [command.meta.permissions];
-                const hasPermission = permissions(requiredPerms)(
-                  message,
-                  (reason) => {
-                    throw new Error(reason);
-                  },
-                );
-                if (!hasPermission) {
-                  return; // Error already thrown above
-                }
-              }
-              logger.info(
-                `Executing DM command: ${commandName} from user: ${message.author.tag} (${message.author.id})`,
-              );
-              await commandErrorHandler(async (message) => {
-                const commandPromise = command.execute(message, { args });
-                const timeoutPromise = new Promise((_, reject) =>
-                  setTimeout(
-                    () => reject(new Error("Command execution timeout")),
-                    30000,
-                  ),
-                );
-                await Promise.race([commandPromise, timeoutPromise]);
-              }, commandName)(message);
-              const executionTime = Date.now() - startTime;
-              logger.info(
-                `DM command ${commandName} completed successfully in ${executionTime}ms`,
-              );
-            } catch (err) {
-              const executionTime = Date.now() - startTime;
-              logger.error(
-                `Error executing DM command for user ${message.author.tag}:`,
-                err,
-              );
-              logger.error(`Command execution time: ${executionTime}ms`);
-              throw err;
-            }
-          });
+          await command.execute(message, { args });
           return;
         }
       }
@@ -130,7 +81,7 @@ const event: Event<"messageCreate"> = {
 
       const history = conversationManager.instance.getHistory(
         contextType,
-        contextId,
+        contextId
       );
 
       // Preprocess all messages in history and the current message
@@ -146,12 +97,12 @@ const event: Event<"messageCreate"> = {
                     ...part,
                     text: await resolveDiscordMentionsAndUrls(
                       part.text,
-                      client,
+                      client
                     ),
                   };
                 }
                 return part;
-              }),
+              })
             );
             return {
               role: m.type === "bot" ? "assistant" : "user",
@@ -163,7 +114,7 @@ const event: Event<"messageCreate"> = {
               content: await resolveDiscordMentionsAndUrls(m.content, client),
             };
           }
-        }),
+        })
       );
       const userContent = extractMultimodalContent(message);
       // Deduplicate: Remove the last message if it matches the current message
@@ -191,7 +142,7 @@ const event: Event<"messageCreate"> = {
       try {
         console.log(
           `[messageCreate] Calling AIClient.chat with request:`,
-          aiRequest,
+          aiRequest
         );
         const aiResponse = await AIClient.chat(aiRequest);
         console.log(`[messageCreate] AIClient.chat response:`, aiResponse);
@@ -216,14 +167,14 @@ const event: Event<"messageCreate"> = {
             botMsg,
             message.channel,
             message.client.user.id,
-            message.client,
+            message.client
           );
         }
       } catch (err) {
         console.error("AI call failed:", err);
         await message.reply(
           "❌ AI call failed: " +
-            (err instanceof Error ? err.message : String(err)),
+            (err instanceof Error ? err.message : String(err))
         );
       }
       return;
@@ -248,7 +199,7 @@ const event: Event<"messageCreate"> = {
         convoMsg,
         message.channel,
         message.client.user.id,
-        message.client,
+        message.client
       );
       const botUsername = message.client.user.username;
       const botNickname = message.guild
@@ -259,7 +210,7 @@ const event: Event<"messageCreate"> = {
 
       const history = conversationManager.instance.getHistory(
         contextType,
-        contextId,
+        contextId
       );
 
       // Preprocess all messages in history and the current message
@@ -274,12 +225,12 @@ const event: Event<"messageCreate"> = {
                     ...part,
                     text: await resolveDiscordMentionsAndUrls(
                       part.text,
-                      client,
+                      client
                     ),
                   };
                 }
                 return part;
-              }),
+              })
             );
             return {
               role: m.type === "bot" ? "assistant" : "user",
@@ -291,7 +242,7 @@ const event: Event<"messageCreate"> = {
               content: await resolveDiscordMentionsAndUrls(m.content, client),
             };
           }
-        }),
+        })
       );
       const userContent = extractMultimodalContent(message);
       // Deduplicate: Remove the last message if it matches the current message
@@ -338,14 +289,14 @@ const event: Event<"messageCreate"> = {
             botMsg,
             message.channel,
             message.client.user.id,
-            message.client,
+            message.client
           );
         }
       } catch (err) {
         console.error("AI call failed:", err);
         await message.reply(
           "❌ AI call failed: " +
-            (err instanceof Error ? err.message : String(err)),
+            (err instanceof Error ? err.message : String(err))
         );
       }
       return;
@@ -374,7 +325,7 @@ const event: Event<"messageCreate"> = {
         convoMsg,
         message.channel,
         message.client.user.id,
-        message.client,
+        message.client
       );
       // Create a unique lock key for this message
       const lockKey = `msg_${message.id}`;
@@ -382,7 +333,7 @@ const event: Event<"messageCreate"> = {
         const startTime = Date.now();
         try {
           logger.debug(
-            `Processing prefix command: ${message.content} from user ${message.author.tag}`,
+            `Processing prefix command: ${message.content} from user ${message.author.tag}`
           );
           // Add permission check here
           if (command.meta.permissions) {
@@ -393,34 +344,25 @@ const event: Event<"messageCreate"> = {
               message,
               (reason) => {
                 throw new Error(reason);
-              },
+              }
             );
             if (!hasPermission) {
               return; // Error already thrown above
             }
           }
           logger.info(
-            `Executing prefix command: ${commandName} from user: ${message.author.tag} (${message.author.id})`,
+            `Executing prefix command: ${commandName} from user: ${message.author.tag} (${message.author.id})`
           );
-          await commandErrorHandler(async (message) => {
-            const commandPromise = command.execute(message, { args });
-            const timeoutPromise = new Promise((_, reject) =>
-              setTimeout(
-                () => reject(new Error("Command execution timeout")),
-                30000,
-              ),
-            );
-            await Promise.race([commandPromise, timeoutPromise]);
-          }, commandName)(message);
+          await command.execute(message, { args });
           const executionTime = Date.now() - startTime;
           logger.info(
-            `Prefix command ${commandName} completed successfully in ${executionTime}ms`,
+            `Prefix command ${commandName} completed successfully in ${executionTime}ms`
           );
         } catch (err) {
           const executionTime = Date.now() - startTime;
           logger.error(
             `Error executing prefix command for user ${message.author.tag}:`,
-            err,
+            err
           );
           logger.error(`Command execution time: ${executionTime}ms`);
           throw err;
@@ -429,7 +371,7 @@ const event: Event<"messageCreate"> = {
       return;
     }
     // Otherwise, ignore
-  }, "messageCreate"),
+  },
 };
 
 export default event;

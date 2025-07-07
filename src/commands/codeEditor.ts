@@ -43,8 +43,8 @@ export const codeEditorCommand: Command = {
           option
             .setName("path")
             .setDescription("Directory path to browse")
-            .setRequired(false),
-        ),
+            .setRequired(false)
+        )
     )
     .addSubcommand((subcommand) =>
       subcommand
@@ -54,8 +54,8 @@ export const codeEditorCommand: Command = {
           option
             .setName("file")
             .setDescription("File path to edit")
-            .setRequired(true),
-        ),
+            .setRequired(true)
+        )
     )
     .addSubcommand((subcommand) =>
       subcommand
@@ -65,7 +65,7 @@ export const codeEditorCommand: Command = {
           option
             .setName("path")
             .setDescription("File path to create")
-            .setRequired(true),
+            .setRequired(true)
         )
         .addStringOption((option) =>
           option
@@ -77,106 +77,100 @@ export const codeEditorCommand: Command = {
               { name: "Event", value: "event" },
               { name: "Service", value: "service" },
               { name: "Utility", value: "utility" },
-              { name: "Type Definition", value: "types" },
-            ),
-        ),
+              { name: "Type Definition", value: "types" }
+            )
+        )
     ) as SlashCommandBuilder,
 
-  execute: commandErrorHandler(
-    async (
-      interactionOrMessage: ChatInputCommandInteraction | Message,
-      context?: { args?: string[] },
-    ) => {
-      try {
-        if ("options" in interactionOrMessage) {
-          // Slash command
-          const subcommand = interactionOrMessage.options.getSubcommand();
-          const codeEditor = new CodeEditorService();
+  execute: async (
+    interactionOrMessage: ChatInputCommandInteraction | Message,
+    context?: { args?: string[] }
+  ) => {
+    try {
+      if ("options" in interactionOrMessage) {
+        // Slash command
+        const subcommand = interactionOrMessage.options.getSubcommand();
+        const codeEditor = new CodeEditorService();
 
-          switch (subcommand) {
-            case "browse":
-              await handleBrowse(interactionOrMessage, codeEditor);
-              break;
-            case "edit":
-              await handleEdit(interactionOrMessage, codeEditor);
-              break;
-            case "create":
-              await handleCreate(interactionOrMessage, codeEditor);
-              break;
-            default:
-              throw new Error(`Unknown subcommand: ${subcommand}`);
-          }
-        } else {
-          // Prefix command
-          const args = context?.args || [];
-          const subcommand = args[0];
-
-          if (!subcommand) {
-            throw new Error(
-              "No subcommand provided. Use: browse, edit, or create",
-            );
-          }
-
-          const codeEditor = new CodeEditorService();
-
-          switch (subcommand) {
-            case "browse":
-              await handleBrowsePrefix(
-                interactionOrMessage,
-                codeEditor,
-                args[1],
-              );
-              break;
-            case "edit":
-              if (!args[1])
-                throw new Error("File path is required for edit command");
-              await handleEditPrefix(interactionOrMessage, codeEditor, args[1]);
-              break;
-            case "create":
-              if (!args[1])
-                throw new Error("File path is required for create command");
-              if (!args[2])
-                throw new Error("File type is required for create command");
-              await handleCreatePrefix(
-                interactionOrMessage,
-                codeEditor,
-                args[1],
-                args[2],
-              );
-              break;
-            default:
-              throw new Error(`Unknown subcommand: ${subcommand}`);
-          }
+        switch (subcommand) {
+          case "browse":
+            await handleBrowse(interactionOrMessage, codeEditor);
+            break;
+          case "edit":
+            await handleEdit(interactionOrMessage, codeEditor);
+            break;
+          case "create":
+            await handleCreate(interactionOrMessage, codeEditor);
+            break;
+          default:
+            throw new Error(`Unknown subcommand: ${subcommand}`);
         }
-      } catch (error: any) {
-        console.error("Command execution error:", error);
+      } else {
+        // Prefix command
+        const args = context?.args || [];
+        const subcommand = args[0];
 
-        // Ensure we respond to the interaction
-        if ("reply" in interactionOrMessage) {
-          if (
-            "options" in interactionOrMessage &&
-            !interactionOrMessage.replied &&
-            !interactionOrMessage.deferred
-          ) {
-            await interactionOrMessage.reply({
-              content: `❌ An error occurred: ${error.message}`,
-              flags: MessageFlags.Ephemeral,
-            });
-          } else {
-            await (interactionOrMessage as any).reply(
-              `❌ An error occurred: ${error.message}`,
+        if (!subcommand) {
+          throw new Error(
+            "No subcommand provided. Use: browse, edit, or create"
+          );
+        }
+
+        const codeEditor = new CodeEditorService();
+
+        switch (subcommand) {
+          case "browse":
+            await handleBrowsePrefix(interactionOrMessage, codeEditor, args[1]);
+            break;
+          case "edit":
+            if (!args[1])
+              throw new Error("File path is required for edit command");
+            await handleEditPrefix(interactionOrMessage, codeEditor, args[1]);
+            break;
+          case "create":
+            if (!args[1])
+              throw new Error("File path is required for create command");
+            if (!args[2])
+              throw new Error("File type is required for create command");
+            await handleCreatePrefix(
+              interactionOrMessage,
+              codeEditor,
+              args[1],
+              args[2]
             );
-          }
+            break;
+          default:
+            throw new Error(`Unknown subcommand: ${subcommand}`);
         }
       }
-    },
-  ),
+    } catch (error: any) {
+      console.error("Command execution error:", error);
+
+      // Ensure we respond to the interaction
+      if ("reply" in interactionOrMessage) {
+        if (
+          "options" in interactionOrMessage &&
+          !interactionOrMessage.replied &&
+          !interactionOrMessage.deferred
+        ) {
+          await interactionOrMessage.reply({
+            content: `❌ An error occurred: ${error.message}`,
+            flags: MessageFlags.Ephemeral,
+          });
+        } else {
+          await (interactionOrMessage as any).reply(
+            `❌ An error occurred: ${error.message}`
+          );
+        }
+      }
+    }
+  },
 };
 
 // Slash command handlers
 async function handleBrowse(
   interaction: ChatInputCommandInteraction,
-  codeEditor: CodeEditorService,
+  codeEditor: CodeEditorService
 ) {
   try {
     const targetPath = interaction.options.getString("path") || "src";
@@ -209,7 +203,7 @@ async function handleBrowse(
 
 async function handleEdit(
   interaction: ChatInputCommandInteraction,
-  codeEditor: CodeEditorService,
+  codeEditor: CodeEditorService
 ) {
   try {
     const filePath = interaction.options.getString("file", true);
@@ -225,7 +219,7 @@ async function handleEdit(
 
 async function handleCreate(
   interaction: ChatInputCommandInteraction,
-  codeEditor: CodeEditorService,
+  codeEditor: CodeEditorService
 ) {
   try {
     const filePath = interaction.options.getString("path", true);
@@ -253,10 +247,10 @@ async function handleCreate(
       .setRequired(false);
 
     const firstRow = new ActionRowBuilder<TextInputBuilder>().addComponents(
-      nameInput,
+      nameInput
     );
     const secondRow = new ActionRowBuilder<TextInputBuilder>().addComponents(
-      contentInput,
+      contentInput
     );
 
     modal.addComponents(firstRow, secondRow);
@@ -274,7 +268,7 @@ async function handleCreate(
 async function handleBrowsePrefix(
   message: Message,
   codeEditor: CodeEditorService,
-  targetPath?: string,
+  targetPath?: string
 ) {
   try {
     const path = targetPath || "src";
@@ -304,7 +298,7 @@ async function handleBrowsePrefix(
 async function handleEditPrefix(
   message: Message,
   codeEditor: CodeEditorService,
-  filePath: string,
+  filePath: string
 ) {
   try {
     await handleFileEdit(message, codeEditor, filePath);
@@ -318,7 +312,7 @@ async function handleCreatePrefix(
   message: Message,
   codeEditor: CodeEditorService,
   filePath: string,
-  fileType: string,
+  fileType: string
 ) {
   try {
     const template = await codeEditor.getTemplate(fileType);
@@ -326,7 +320,7 @@ async function handleCreatePrefix(
     const embed = new EmbedBuilder()
       .setTitle("📝 Create File")
       .setDescription(
-        `To create a file in \`${filePath}\` with type \`${fileType}\`, please use the slash command:\n\`/code create path:${filePath} type:${fileType}\``,
+        `To create a file in \`${filePath}\` with type \`${fileType}\`, please use the slash command:\n\`/code create path:${filePath} type:${fileType}\``
       )
       .addFields({
         name: "Template Preview",
@@ -347,7 +341,7 @@ async function handleCreatePrefix(
 function setupComponentCollector(
   message: any,
   codeEditor: CodeEditorService,
-  currentPath: string,
+  currentPath: string
 ) {
   const collector = message.createMessageComponentCollector({
     filter: (i: any) =>
@@ -360,13 +354,13 @@ function setupComponentCollector(
     try {
       console.log(
         "Component interaction received:",
-        componentInteraction.customId,
+        componentInteraction.customId
       );
 
       // Check for modal interactions first - these must be handled before deferring
       if (componentInteraction.customId.startsWith("edit_modal_")) {
         const filePath = decodePathFromCustomId(
-          componentInteraction.customId.replace("edit_modal_", ""),
+          componentInteraction.customId.replace("edit_modal_", "")
         );
         const fileContent = await codeEditor.getFileContent(filePath);
         const modal = createEditModal(filePath, fileContent);
@@ -374,7 +368,7 @@ function setupComponentCollector(
         return; // Exit early since we've handled the modal
       } else if (componentInteraction.customId.startsWith("rename_")) {
         const filePath = decodePathFromCustomId(
-          componentInteraction.customId.replace("rename_", ""),
+          componentInteraction.customId.replace("rename_", "")
         );
         const modal = createRenameModal(filePath);
         await componentInteraction.showModal(modal);
@@ -389,32 +383,32 @@ function setupComponentCollector(
       if (componentInteraction.customId === "navigate_directory") {
         const selectedValue = componentInteraction.values[0];
         const newPath = decodePathFromCustomId(
-          selectedValue.replace("navigate_", ""),
+          selectedValue.replace("navigate_", "")
         );
         await handleNavigation(componentInteraction, codeEditor, newPath);
       } else if (componentInteraction.customId === "select_file") {
         const selectedValue = componentInteraction.values[0];
         console.log("Selected value from dropdown:", selectedValue);
         const filePath = decodePathFromCustomId(
-          selectedValue.replace("edit_", ""),
+          selectedValue.replace("edit_", "")
         );
         console.log("Decoded file path:", filePath);
         await handleFileEdit(componentInteraction, codeEditor, filePath);
       } else if (componentInteraction.customId.startsWith("navigate_")) {
         const newPath = decodePathFromCustomId(
-          componentInteraction.customId.replace("navigate_", ""),
+          componentInteraction.customId.replace("navigate_", "")
         );
         await handleNavigation(componentInteraction, codeEditor, newPath);
       } else if (componentInteraction.customId.startsWith("edit_")) {
         const filePath = decodePathFromCustomId(
-          componentInteraction.customId.replace("edit_", ""),
+          componentInteraction.customId.replace("edit_", "")
         );
         await handleFileEdit(componentInteraction, codeEditor, filePath);
       } else if (componentInteraction.customId.startsWith("action_")) {
         await handleFileAction(componentInteraction, codeEditor);
       } else if (componentInteraction.customId.startsWith("delete_")) {
         const filePath = decodePathFromCustomId(
-          componentInteraction.customId.replace("delete_", ""),
+          componentInteraction.customId.replace("delete_", "")
         );
         await handleFileDelete(componentInteraction, codeEditor, filePath);
       } else if (componentInteraction.customId === "back_browser") {
@@ -423,7 +417,7 @@ function setupComponentCollector(
         await handleNavigation(componentInteraction, codeEditor, currentPath);
       } else if (componentInteraction.customId.startsWith("confirm_delete_")) {
         const filePath = decodePathFromCustomId(
-          componentInteraction.customId.replace("confirm_delete_", ""),
+          componentInteraction.customId.replace("confirm_delete_", "")
         );
         await codeEditor.deleteFile(filePath);
         await componentInteraction.editReply({
@@ -460,7 +454,7 @@ function setupComponentCollector(
 async function handleNavigation(
   interaction: any,
   codeEditor: CodeEditorService,
-  newPath: string,
+  newPath: string
 ) {
   try {
     const fileTree = await codeEditor.getFileTree(newPath);
@@ -493,7 +487,7 @@ async function handleNavigation(
 async function handleFileEdit(
   interaction: any,
   codeEditor: CodeEditorService,
-  filePath: string,
+  filePath: string
 ) {
   try {
     const fileContent = await codeEditor.getFileContent(filePath);
@@ -505,7 +499,7 @@ async function handleFileEdit(
       .addFields(
         { name: "Size", value: `${fileInfo.size} bytes`, inline: true },
         { name: "Type", value: fileInfo.type, inline: true },
-        { name: "Modified", value: fileInfo.modified, inline: true },
+        { name: "Modified", value: fileInfo.modified, inline: true }
       )
       .setColor(0x5865f2)
       .setTimestamp();
@@ -566,7 +560,7 @@ async function handleFileEdit(
         .setCustomId(`back_browser`)
         .setLabel("Back to Browser")
         .setStyle(ButtonStyle.Secondary)
-        .setEmoji("⬅️"),
+        .setEmoji("⬅️")
     );
 
     if (interaction.deferred) {
@@ -629,7 +623,7 @@ function createEditModal(filePath: string, content: string) {
     .setRequired(true);
 
   const row = new ActionRowBuilder<TextInputBuilder>().addComponents(
-    contentInput,
+    contentInput
   );
   modal.addComponents(row);
 
@@ -656,7 +650,7 @@ function createRenameModal(filePath: string) {
 
 async function handleFileAction(
   interaction: any,
-  codeEditor: CodeEditorService,
+  codeEditor: CodeEditorService
 ) {
   try {
     const customId = interaction.customId.replace("action_", "");
@@ -692,7 +686,7 @@ async function handleFileAction(
 
         createModal.addComponents(
           new ActionRowBuilder<TextInputBuilder>().addComponents(nameInput),
-          new ActionRowBuilder<TextInputBuilder>().addComponents(contentInput),
+          new ActionRowBuilder<TextInputBuilder>().addComponents(contentInput)
         );
 
         await interaction.showModal(createModal);
@@ -722,7 +716,7 @@ async function handleFileAction(
 async function handleFileDelete(
   interaction: any,
   codeEditor: CodeEditorService,
-  filePath: string,
+  filePath: string
 ) {
   try {
     const embed = new EmbedBuilder()
@@ -738,7 +732,7 @@ async function handleFileDelete(
       new ButtonBuilder()
         .setCustomId("cancel_delete")
         .setLabel("Cancel")
-        .setStyle(ButtonStyle.Secondary),
+        .setStyle(ButtonStyle.Secondary)
     );
 
     await interaction.editReply({
@@ -766,7 +760,7 @@ async function createFileTreeComponents(fileTree: any, currentPath: string) {
         .map((dir: any) => ({
           label: `📁 ${dir.name}`,
           value: `navigate_${encodePathForCustomId(
-            path.join(currentPath, dir.name),
+            path.join(currentPath, dir.name)
           )}`,
           description: `${dir.fileCount || 0} files`,
         }));
@@ -778,8 +772,8 @@ async function createFileTreeComponents(fileTree: any, currentPath: string) {
 
       components.push(
         new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-          directorySelect,
-        ),
+          directorySelect
+        )
       );
     }
 
@@ -788,7 +782,7 @@ async function createFileTreeComponents(fileTree: any, currentPath: string) {
       const fileOptions = fileTree.files.slice(0, 25).map((file: any) => ({
         label: `📄 ${file.name}`,
         value: `edit_${encodePathForCustomId(
-          path.join(currentPath, file.name),
+          path.join(currentPath, file.name)
         )}`,
         description: `${file.size || 0} bytes • ${file.type || "unknown"}`,
       }));
@@ -800,8 +794,8 @@ async function createFileTreeComponents(fileTree: any, currentPath: string) {
 
       components.push(
         new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-          fileSelect,
-        ),
+          fileSelect
+        )
       );
     }
 
@@ -819,12 +813,12 @@ async function createFileTreeComponents(fileTree: any, currentPath: string) {
         .setEmoji("🔄"),
       new ButtonBuilder()
         .setCustomId(
-          `action_back_${encodePathForCustomId(path.dirname(currentPath))}`,
+          `action_back_${encodePathForCustomId(path.dirname(currentPath))}`
         )
         .setLabel("Back")
         .setStyle(ButtonStyle.Secondary)
         .setEmoji("⬅️")
-        .setDisabled(currentPath === "src" || currentPath === "."),
+        .setDisabled(currentPath === "src" || currentPath === ".")
     );
 
     components.push(actionButtons);
@@ -836,7 +830,7 @@ async function createFileTreeComponents(fileTree: any, currentPath: string) {
         .setCustomId(`action_refresh_${encodePathForCustomId(currentPath)}`)
         .setLabel("Refresh")
         .setStyle(ButtonStyle.Secondary)
-        .setEmoji("🔄"),
+        .setEmoji("🔄")
     );
     components.push(errorButton);
   }

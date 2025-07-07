@@ -1,54 +1,54 @@
-import { BaseRepository } from "./base-repository";
-import { GuildRow, CreateGuildInput, UpdateGuildInput, EntityId } from "../types";
-
-export class GuildRepository extends BaseRepository<
+import {
   GuildRow,
   CreateGuildInput,
-  UpdateGuildInput
-> {
-  protected readonly tableName = "guilds";
+  UpdateGuildInput,
+  EntityId,
+} from "../types";
+import { db } from "../client";
+
+export class GuildRepository {
+  private readonly table = "guilds";
 
   async findByDiscordId(discordGuildId: string): Promise<GuildRow | null> {
-    try {
-      const stmt = this.db.prepare(
-        "SELECT * FROM guilds WHERE discordGuildId = ?",
-      );
-      const result = stmt.get(discordGuildId) as GuildRow | undefined;
-      return result || null;
-    } catch (error) {
-      throw new Error(`Failed to find guild by Discord ID: ${error}`);
-    }
+    const stmt = db.prepare("SELECT * FROM guilds WHERE discordGuildId = ?");
+    const result = stmt.get(discordGuildId) as GuildRow | undefined;
+    return result || null;
   }
 
   async findOrCreateByDiscordId(
     discordGuildId: string,
-    guildData?: Partial<CreateGuildInput>,
+    guildData?: Partial<CreateGuildInput>
   ): Promise<GuildRow> {
     const existingGuild = await this.findByDiscordId(discordGuildId);
     if (existingGuild) return existingGuild;
-
-    const createData: CreateGuildInput = {
+    const now = new Date().toISOString();
+    const stmt = db.prepare(
+      `INSERT INTO guilds (discordGuildId, name, iconUrl, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?) RETURNING *`
+    );
+    return stmt.get(
       discordGuildId,
-      name: guildData?.name ?? "",
-      iconUrl: guildData?.iconUrl,
-    };
-    return await this.create(createData);
+      guildData?.name ?? "",
+      guildData?.iconUrl ?? null,
+      now,
+      now
+    ) as GuildRow;
   }
 
   async updateByDiscordId(
     discordGuildId: string,
-    data: UpdateGuildInput,
+    data: UpdateGuildInput
   ): Promise<GuildRow> {
-    try {
-      const keys = Object.keys(data as object);
-      const values = Object.values(data as object);
-      const setClause = keys.map((key) => `${key} = ?`).join(", ");
-      const query = `UPDATE guilds SET ${setClause} WHERE discordGuildId = ? RETURNING *`;
-      const stmt = this.db.prepare(query);
-      const result = stmt.get(...values, discordGuildId) as GuildRow;
-      return result;
-    } catch (error) {
-      throw new Error(`Failed to update guild by Discord ID: ${error}`);
+    const fields = [];
+    const values = [];
+    for (const [key, value] of Object.entries(data)) {
+      fields.push(`${key} = ?`);
+      values.push(value);
     }
+    values.push(new Date().toISOString());
+    values.push(discordGuildId);
+    const stmt = db.prepare(
+      `UPDATE guilds SET ${fields.join(", ")}, updatedAt = ? WHERE discordGuildId = ? RETURNING *`
+    );
+    return stmt.get(...values) as GuildRow;
   }
 }

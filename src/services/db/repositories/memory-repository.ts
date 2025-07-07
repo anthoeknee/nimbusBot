@@ -1,4 +1,3 @@
-import { BaseRepository } from "./base-repository";
 import { safeJsonParse, safeJsonStringify } from "../client";
 import { EntityId } from "../types";
 import { logger } from "../../../utils/logger";
@@ -14,34 +13,34 @@ import {
   MemoryRelationship,
   DatabaseOperationResult,
 } from "../../../types/memory";
+import { db } from "../client";
 
 /**
  * Enhanced Memory Repository - Comprehensive implementation with vector similarity search,
  * analytics, relationships, and advanced memory management features
  */
-export class EnhancedMemoryRepository extends BaseRepository<
-  MemoryRow,
-  CreateMemoryInput,
-  UpdateMemoryInput
-> {
-  protected readonly tableName = "memories";
+export class EnhancedMemoryRepository {
+  private readonly table = "memories";
 
   // ============================================================================
   // BASIC CRUD OPERATIONS (Enhanced from BaseRepository)
   // ============================================================================
 
   async findByUser(userId: EntityId): Promise<MemoryRecord[]> {
-    const rows = await this.findMany({ userId });
+    const stmt = db.prepare(`SELECT * FROM memories WHERE userId = ?`);
+    const rows = stmt.all(userId) as MemoryRow[];
     return rows.map((row) => this.parseMemoryRow(row));
   }
 
   async findByGuild(guildId: EntityId): Promise<MemoryRecord[]> {
-    const rows = await this.findMany({ guildId });
+    const stmt = db.prepare(`SELECT * FROM memories WHERE guildId = ?`);
+    const rows = stmt.all(guildId) as MemoryRow[];
     return rows.map((row) => this.parseMemoryRow(row));
   }
 
   async findByIdParsed(id: EntityId): Promise<MemoryRecord | null> {
-    const row = await this.findById(id);
+    const stmt = db.prepare(`SELECT * FROM memories WHERE id = ?`);
+    const row = stmt.get(id) as MemoryRow | undefined;
     return row ? this.parseMemoryRow(row) : null;
   }
 
@@ -104,17 +103,29 @@ export class EnhancedMemoryRepository extends BaseRepository<
         createdAt: now,
         updatedAt: now,
       };
-
-      const row = await this.create(createData);
+      const stmt = db.prepare(
+        `INSERT INTO memories (content, embedding, userId, guildId, importance, tags, metadata, accessCount, lastAccessedAt, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`
+      );
+      const row = stmt.get(
+        createData.content,
+        safeJsonStringify(createData.embedding),
+        createData.userId ?? null,
+        createData.guildId ?? null,
+        createData.importance,
+        safeJsonStringify(createData.tags),
+        safeJsonStringify(createData.metadata),
+        createData.accessCount,
+        createData.lastAccessedAt,
+        createData.createdAt,
+        createData.updatedAt
+      ) as MemoryRow;
       const memory = this.parseMemoryRow(row);
-
       logger.debug("Enhanced memory created", {
         memoryId: memory.id,
         importance: memory.importance,
         tagsCount: memory.tags.length,
         contentLength: content.length,
       });
-
       return memory;
     } catch (error) {
       logger.error("Failed to create memory with embedding:", error);
@@ -139,32 +150,26 @@ export class EnhancedMemoryRepository extends BaseRepository<
         tags = [],
         importanceThreshold = 0,
       } = options;
-
       let whereClause = "WHERE 1=1";
       const params: any[] = [];
-
       if (userId !== undefined) {
         whereClause += " AND userId = ?";
         params.push(userId);
       }
-
       if (guildId !== undefined) {
         whereClause += " AND guildId = ?";
         params.push(guildId);
       }
-
       if (importanceThreshold > 0) {
         whereClause += " AND importance >= ?";
         params.push(importanceThreshold);
       }
-
       if (tags.length > 0) {
         const tagConditions = tags.map(() => "tags LIKE ?").join(" OR ");
         whereClause += ` AND (${tagConditions})`;
-        tags.forEach((tag) => params.push(`%"${tag}"%`));
+        tags.forEach((tag) => params.push(`%\"${tag}\"%`));
       }
-
-      const stmt = this.db.prepare(`
+      const stmt = db.prepare(`
         SELECT id, content, embedding, userId, guildId, createdAt, updatedAt,
                lastAccessedAt, accessCount, importance, tags, metadata
         FROM memories
@@ -172,32 +177,25 @@ export class EnhancedMemoryRepository extends BaseRepository<
         ORDER BY lastAccessedAt DESC
         LIMIT ?
       `);
-
-      params.push(topK * 2); // Get more candidates for better similarity filtering
-
+      params.push(topK * 2);
       const rows = stmt.all(...params) as MemoryRow[];
       const results: MemorySearchResult[] = [];
-
       for (const row of rows) {
         const embedding = safeJsonParse<number[]>(row.embedding);
         if (!embedding) continue;
-
         if (embedding.length !== queryEmbedding.length) {
           logger.warn(
             `Skipping memory ${row.id} due to embedding dimension mismatch: stored=${embedding.length}, query=${queryEmbedding.length}`
           );
           continue;
         }
-
         logger.debug(
           `Comparing embeddings - Query: ${queryEmbedding.length}D, Stored: ${embedding.length}D (Memory ID: ${row.id})`
         );
-
         const similarity = this.calculateCosineSimilarity(
           queryEmbedding,
           embedding
         );
-
         if (similarity >= minSimilarity) {
           results.push({
             data: this.parseMemoryRow(row),
@@ -205,8 +203,6 @@ export class EnhancedMemoryRepository extends BaseRepository<
           });
         }
       }
-
-      // Sort by similarity and return top K
       results.sort((a, b) => b.similarity - a.similarity);
       return results.slice(0, topK);
     } catch (error) {
@@ -225,21 +221,17 @@ export class EnhancedMemoryRepository extends BaseRepository<
       );
       throw new Error("Vectors must have the same length");
     }
-
     let dotProduct = 0;
     let normA = 0;
     let normB = 0;
-
     for (let i = 0; i < vecA.length; i++) {
       dotProduct += vecA[i] * vecB[i];
       normA += vecA[i] * vecA[i];
       normB += vecB[i] * vecB[i];
     }
-
     if (normA === 0 || normB === 0) {
       return 0;
     }
-
     return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
   }
 
@@ -249,13 +241,11 @@ export class EnhancedMemoryRepository extends BaseRepository<
 
   async getAnalytics(): Promise<MemoryAnalytics> {
     try {
-      const totalStmt = this.db.prepare(
-        "SELECT COUNT(*) as count FROM memories"
-      );
+      const totalStmt = db.prepare("SELECT COUNT(*) as count FROM memories");
       const totalResult = totalStmt.get() as { count: number };
       const totalMemories = totalResult?.count || 0;
 
-      const typeStmt = this.db.prepare(`
+      const typeStmt = db.prepare(`
         SELECT
           CASE
             WHEN userId IS NOT NULL THEN 'user'
@@ -278,13 +268,13 @@ export class EnhancedMemoryRepository extends BaseRepository<
         {} as Record<string, number>
       );
 
-      const importanceStmt = this.db.prepare(
+      const importanceStmt = db.prepare(
         "SELECT AVG(importance) as avg FROM memories"
       );
       const importanceResult = importanceStmt.get() as { avg: number };
       const averageImportance = importanceResult?.avg || 0;
 
-      const activityStmt = this.db.prepare(`
+      const activityStmt = db.prepare(`
         SELECT COUNT(*) as count
         FROM memories
         WHERE lastAccessedAt > datetime('now', '-7 days')
@@ -293,7 +283,7 @@ export class EnhancedMemoryRepository extends BaseRepository<
       const recentActivity = activityResult?.count || 0;
 
       // Get top tags
-      const tagsStmt = this.db.prepare("SELECT tags FROM memories");
+      const tagsStmt = db.prepare("SELECT tags FROM memories");
       const tagRows = tagsStmt.all() as Array<{ tags: string }>;
       const tagCounts = new Map<string, number>();
 
@@ -310,7 +300,7 @@ export class EnhancedMemoryRepository extends BaseRepository<
         .map(([tag, count]) => ({ tag, count }));
 
       // Memory distribution analysis
-      const importanceDistStmt = this.db.prepare(`
+      const importanceDistStmt = db.prepare(`
         SELECT
           CASE
             WHEN importance >= 8 THEN 'high'
@@ -333,7 +323,7 @@ export class EnhancedMemoryRepository extends BaseRepository<
         {} as Record<string, number>
       );
 
-      const ageDistStmt = this.db.prepare(`
+      const ageDistStmt = db.prepare(`
         SELECT
           CASE
             WHEN createdAt > datetime('now', '-1 day') THEN 'recent'
@@ -357,7 +347,7 @@ export class EnhancedMemoryRepository extends BaseRepository<
         {} as Record<string, number>
       );
 
-      const accessDistStmt = this.db.prepare(`
+      const accessDistStmt = db.prepare(`
         SELECT
           CASE
             WHEN accessCount >= 10 THEN 'frequent'
@@ -382,7 +372,7 @@ export class EnhancedMemoryRepository extends BaseRepository<
       );
 
       // Tool-driven analytics
-      const toolDrivenStmt = this.db.prepare(`
+      const toolDrivenStmt = db.prepare(`
         SELECT COUNT(*) as count
         FROM memories
         WHERE metadata LIKE '%"toolDrivenMode":true%'
@@ -390,7 +380,7 @@ export class EnhancedMemoryRepository extends BaseRepository<
       const toolDrivenResult = toolDrivenStmt.get() as { count: number };
       const toolDrivenMemories = toolDrivenResult?.count || 0;
 
-      const categoryStmt = this.db.prepare(`
+      const categoryStmt = db.prepare(`
         SELECT
           json_extract(metadata, '$.category') as category,
           COUNT(*) as count
@@ -459,7 +449,7 @@ export class EnhancedMemoryRepository extends BaseRepository<
         metadata: safeJsonStringify(metadata),
       };
 
-      const stmt = this.db.prepare(`
+      const stmt = db.prepare(`
         INSERT INTO memory_relationships (
           sourceMemoryId, targetMemoryId, relationshipType, strength, createdAt, metadata
         ) VALUES (?, ?, ?, ?, ?, ?)
@@ -497,7 +487,7 @@ export class EnhancedMemoryRepository extends BaseRepository<
 
   async getRelationships(memoryId: string): Promise<MemoryRelationship[]> {
     try {
-      const stmt = this.db.prepare(`
+      const stmt = db.prepare(`
         SELECT sourceMemoryId, targetMemoryId, relationshipType, strength, createdAt, metadata
         FROM memory_relationships
         WHERE sourceMemoryId = ? OR targetMemoryId = ?
@@ -533,7 +523,7 @@ export class EnhancedMemoryRepository extends BaseRepository<
 
   async updateAccess(memoryId: string): Promise<void> {
     try {
-      const stmt = this.db.prepare(`
+      const stmt = db.prepare(`
         UPDATE memories
         SET accessCount = accessCount + 1, lastAccessedAt = CURRENT_TIMESTAMP
         WHERE id = ?
@@ -552,7 +542,7 @@ export class EnhancedMemoryRepository extends BaseRepository<
 
   async decayScores(decayFactor: number): Promise<void> {
     try {
-      const stmt = this.db.prepare(`
+      const stmt = db.prepare(`
         UPDATE memories
         SET importance = importance * ?
         WHERE importance > 1
@@ -571,7 +561,7 @@ export class EnhancedMemoryRepository extends BaseRepository<
     minImportance: number = 1
   ): Promise<number> {
     try {
-      const stmt = this.db.prepare(`
+      const stmt = db.prepare(`
         DELETE FROM memories
         WHERE createdAt < datetime('now', '-${maxAge} days')
         AND importance < ?
@@ -594,7 +584,7 @@ export class EnhancedMemoryRepository extends BaseRepository<
     similarityThreshold: number
   ): Promise<ConsolidationCandidate[][]> {
     try {
-      const stmt = this.db.prepare(`
+      const stmt = db.prepare(`
         SELECT id, content, embedding, createdAt, accessCount
         FROM memories
         WHERE accessCount > 0
@@ -687,7 +677,7 @@ export class EnhancedMemoryRepository extends BaseRepository<
       const values = Object.values(serializedData);
       const placeholders = keys.map(() => "?").join(", ");
       const query = `INSERT INTO memories (${keys.join(", ")}) VALUES (${placeholders}) RETURNING *`;
-      const stmt = this.getPreparedStatement(query);
+      const stmt = db.prepare(query);
       const result = stmt.get(...values) as MemoryRow;
       return result;
     } catch (error) {
@@ -709,8 +699,8 @@ export class EnhancedMemoryRepository extends BaseRepository<
       const keys = Object.keys(serializedData[0]);
       const placeholders = keys.map(() => "?").join(", ");
       const query = `INSERT INTO memories (${keys.join(", ")}) VALUES (${placeholders}) RETURNING *`;
-      const insertStmt = this.getPreparedStatement(query);
-      const insertManyTx = this.db.transaction((items) => {
+      const insertStmt = db.prepare(query);
+      const insertManyTx = db.transaction((items) => {
         const results: MemoryRow[] = [];
         for (const item of items) {
           const values = Object.values(item);
@@ -750,7 +740,7 @@ export class EnhancedMemoryRepository extends BaseRepository<
       const values = Object.values(cleanedData);
       const setClause = keys.map((key) => `${key} = ?`).join(", ");
       const query = `UPDATE memories SET ${setClause} WHERE id = ? RETURNING *`;
-      const stmt = this.db.prepare(query);
+      const stmt = db.prepare(query);
       const result = stmt.get(...values, id) as MemoryRow;
       return result;
     } catch (error) {
