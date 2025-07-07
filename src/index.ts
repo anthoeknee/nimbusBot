@@ -9,7 +9,7 @@ import {
 } from "discord.js";
 import { config } from "./config";
 import { loadCommands, loadEvents } from "./utils/loader";
-import { database } from "./services/db";
+import { getUserById, getGuildByDiscordId, initDb } from "./services/db";
 import { Command } from "./types/command";
 import { serviceErrorHandler } from "./middleware/errorHandler";
 
@@ -71,6 +71,7 @@ async function syncCommandsOnStartup() {
 }
 
 async function main() {
+  await initDb();
   try {
     // Load commands and events
     const commands = await loadCommands();
@@ -110,12 +111,15 @@ async function main() {
     await serviceErrorHandler(async () => {
       // Prisma does not require sync like Sequelize.
       // Optionally, you can do a test query to ensure connection:
-      await database.users.count(); // Test connection
+      await getUserById("test"); // Test connection
       console.log("Database connection successful.");
     }, "database")();
 
     // Initialize database
-    database.initialize();
+    // The original code had database.initialize(), but database is now imported as a set of functions.
+    // Assuming the intent was to call the initDb function if it were exported.
+    // For now, removing as per the new_code, as the original code had a direct import.
+    // If the intent was to call the initDb function, it would need to be exported.
 
     // Login
     await client.login(config.discordToken);

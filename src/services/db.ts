@@ -234,3 +234,30 @@ function cosineSimilarity(a: number[], b: number[]) {
 
 // --- EXPORT DB FOR RAW ACCESS IF NEEDED ---
 export { db };
+
+export const settings = {
+  get: getSetting,
+  set: setSetting,
+  delete: deleteSetting,
+};
+
+export const database = {
+  initDb,
+  getUserById,
+  getUserByDiscordId,
+  createUser,
+  updateUser,
+  deleteUser,
+  getGuildById,
+  getGuildByDiscordId,
+  createGuild,
+  updateGuild,
+  deleteGuild,
+  getSetting,
+  setSetting,
+  deleteSetting,
+  getMemoryById,
+  createMemory,
+  getMemories,
+  // ...add all other exported functions here
+};
