@@ -1,22 +1,13 @@
-import {
-  Client,
-  Collection,
-  GatewayIntentBits,
-  ChatInputCommandInteraction,
-  Message,
-  MessageFlags,
-  Partials,
-} from "discord.js";
+import { Client, Collection, GatewayIntentBits, Partials } from "discord.js";
 import { config } from "./config";
 import { loadCommands, loadEvents } from "./utils/loader";
-import { getUserById, getGuildByDiscordId, initDb } from "./services/db";
 import { Command } from "./types/command";
 import { serviceErrorHandler } from "./middleware/errorHandler";
 
 export interface ExtendedClient extends Client {
   commands: Collection<string, Command>;
 }
-// testing
+
 export const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -71,28 +62,15 @@ async function syncCommandsOnStartup() {
 }
 
 async function main() {
-  await initDb();
   try {
     // Load commands and events
     const commands = await loadCommands();
     const events = await loadEvents();
 
-    // List loaded commands
-    console.log("Loaded commands:");
-    for (const [name] of commands) {
-      console.log(`- ${name}`);
-    }
-
-    // List loaded events
-    console.log("Loaded events:");
-    for (const event of events) {
-      console.log(`- ${event.name}`);
-    }
-
-    // Attach commands to client for easy access
+    // Attach commands to client
     (client as any).commands = commands;
 
-    // Register events with enhanced error handling
+    // Register events
     for (const event of events) {
       if (event.once) {
         client.once(
@@ -107,24 +85,10 @@ async function main() {
       }
     }
 
-    // Initialize and synchronize the database with enhanced error handling
-    await serviceErrorHandler(async () => {
-      // Prisma does not require sync like Sequelize.
-      // Optionally, you can do a test query to ensure connection:
-      await getUserById("test"); // Test connection
-      console.log("Database connection successful.");
-    }, "database")();
-
-    // Initialize database
-    // The original code had database.initialize(), but database is now imported as a set of functions.
-    // Assuming the intent was to call the initDb function if it were exported.
-    // For now, removing as per the new_code, as the original code had a direct import.
-    // If the intent was to call the initDb function, it would need to be exported.
-
     // Login
     await client.login(config.discordToken);
 
-    // Auto-sync commands after login and ready
+    // Sync commands after login
     client.once("ready", async () => {
       try {
         await syncCommandsOnStartup();
@@ -138,16 +102,5 @@ async function main() {
     process.exit(1);
   }
 }
-
-// Handle uncaught exceptions and unhandled rejections
-process.on("uncaughtException", (error) => {
-  console.error("Uncaught Exception:", error);
-  process.exit(1);
-});
-
-process.on("unhandledRejection", (reason, promise) => {
-  console.error("Unhandled Rejection at:", promise, "reason:", reason);
-  process.exit(1);
-});
 
 main();

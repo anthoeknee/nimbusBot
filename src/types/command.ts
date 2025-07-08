@@ -1,4 +1,4 @@
-import { Client, ChatInputCommandInteraction, Message, SlashCommandBuilder, PermissionFlagsBits } from "discord.js";
+import { ChatInputCommandInteraction, SlashCommandBuilder } from "discord.js";
 
 // Command metadata interface
 export interface CommandMeta {
@@ -7,24 +7,27 @@ export interface CommandMeta {
   category?: string;
   usage?: string;
   examples?: string | string[];
-  permissions?: (keyof typeof PermissionFlagsBits)[] | keyof typeof PermissionFlagsBits;
+  permissions?:
+    | (keyof typeof PermissionFlagsBits)[]
+    | keyof typeof PermissionFlagsBits;
   cooldown?: number;
-  aliases?: string[];
   guildOnly?: boolean;
-  // Add more metadata fields as needed (e.g., options, permissions)
 }
 
 export type ModuleType = "single" | "multi" | "auto";
 
 export interface Command {
-  meta: CommandMeta;
+  meta: {
+    name: string;
+    description: string;
+    category?: string;
+    permissions?: string[];
+    usage?: string;
+    examples?: string[];
+    cooldown?: number;
+    guildOnly?: boolean;
+    [key: string]: any;
+  };
   data: SlashCommandBuilder;
-  execute: (interaction: ChatInputCommandInteraction | Message, context?: { args?: string[] }) => Promise<void>;
-}
-
-// Command context (customize as needed)
-export interface CommandContext {
-  message: any; // Replace 'any' with your Discord message type
-  args: string[];
-  client: any; // Replace 'any' with your Discord client type
+  execute: (interaction: ChatInputCommandInteraction) => Promise<any> | any;
 }

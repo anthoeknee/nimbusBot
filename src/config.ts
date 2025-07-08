@@ -15,6 +15,6 @@ export const config = {
   bun: {
     jit: getEnvVar("BUN_JIT", "true") === "true",
     useOptimizedJson: true,
-    useFastPath: true
-  }
+    useFastPath: true,
+  },
 };

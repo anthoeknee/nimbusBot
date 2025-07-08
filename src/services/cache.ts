@@ -49,7 +49,7 @@ export class MemoryStore implements Service {
       enableDetailedMemoryStats: config?.enableDetailedMemoryStats ?? false,
     };
     logger.debug(
-      `MemoryStore initialized with config: ${JSON.stringify(this.config)}`
+      `MemoryStore initialized with config: ${JSON.stringify(this.config)}`,
     );
   }
 
@@ -76,13 +76,13 @@ export class MemoryStore implements Service {
       this.stats.totalEntries = this.store.size;
     }
     logger.debug(
-      `Stored key "${key}" with TTL: ${ttlSeconds ? `${ttlSeconds}s` : "no expiration"}`
+      `Stored key "${key}" with TTL: ${ttlSeconds ? `${ttlSeconds}s` : "no expiration"}`,
     );
   }
 
   setBulk<T>(entries: Array<[string, T, number?]>): void {
     const uniqueNewKeys = new Set(
-      entries.map(([key]) => key).filter((key) => !this.store.has(key))
+      entries.map(([key]) => key).filter((key) => !this.store.has(key)),
     );
     const spaceNeeded = uniqueNewKeys.size;
     const currentSize = this.store.size;
@@ -351,7 +351,7 @@ export class MemoryStore implements Service {
       this.cleanupExpiredEntries();
     }, this.config.cleanupInterval);
     logger.debug(
-      `Started background cleanup process (interval: ${this.config.cleanupInterval}ms)`
+      `Started background cleanup process (interval: ${this.config.cleanupInterval}ms)`,
     );
   }
 
@@ -376,7 +376,7 @@ export class MemoryStore implements Service {
       this.store.delete(key);
     }
     logger.debug(
-      `Evicted ${keysToDelete.length} oldest entries due to capacity limit`
+      `Evicted ${keysToDelete.length} oldest entries due to capacity limit`,
     );
   }
 
@@ -385,7 +385,7 @@ export class MemoryStore implements Service {
     if (oldestKey) {
       this.store.delete(oldestKey);
       logger.debug(
-        `Evicted oldest entry: "${oldestKey}" due to capacity limit`
+        `Evicted oldest entry: "${oldestKey}" due to capacity limit`,
       );
     }
   }
@@ -414,7 +414,7 @@ export class MemoryStore implements Service {
         }
         return Object.keys(value).reduce(
           (sum, key) => sum + key.length * 2 + this.estimateSize(value[key]),
-          32
+          32,
         );
       default:
         return 50;

@@ -153,13 +153,13 @@ export class CohereProvider implements AIProviderInterface {
   }
 
   async speechToText(
-    request: AISpeechToTextRequest
+    request: AISpeechToTextRequest,
   ): Promise<AISpeechToTextResponse> {
     throw new Error("Cohere speech-to-text not implemented");
   }
 
   async textToSpeech(
-    request: AITextToSpeechRequest
+    request: AITextToSpeechRequest,
   ): Promise<AITextToSpeechResponse> {
     throw new Error("Cohere text-to-speech not implemented");
   }

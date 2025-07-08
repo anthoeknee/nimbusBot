@@ -10,5 +10,6 @@
       "database": "nimbusDB",
       "username": "nimbus"
     }
-  ]
+  ],
+  "typescript.experimental.useTsgo": true
 }

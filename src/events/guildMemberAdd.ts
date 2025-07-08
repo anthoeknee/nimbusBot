@@ -1,5 +1,5 @@
 import { Event } from "../types/event";
-import { database, settings } from "../services/db";
+import { settings, database } from "../services/db";
 import { VerificationConfig } from "../services/db/types";
 import { GuildMember, PermissionsBitField } from "discord.js";
 

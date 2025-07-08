@@ -7,7 +7,7 @@ import type { Service } from "../types/service";
 import type { ClientEvents } from "discord.js";
 import { logger } from "./logger";
 
-// Async generator for walking directories (returns .js/.ts files, skips .d.ts)
+// Recursively walk a directory, yielding .js/.ts files (excluding .d.ts)
 export async function* walk(dir: string): AsyncGenerator<string> {
   const dirHandle = await opendir(dir);
   for await (const entry of dirHandle) {
@@ -15,15 +15,15 @@ export async function* walk(dir: string): AsyncGenerator<string> {
     if (entry.isDirectory()) {
       yield* walk(path);
     } else if (
-      (entry.name.endsWith('.ts') || entry.name.endsWith('.js')) &&
-      !entry.name.endsWith('.d.ts')
+      (entry.name.endsWith(".ts") || entry.name.endsWith(".js")) &&
+      !entry.name.endsWith(".d.ts")
     ) {
       yield path;
     }
   }
 }
 
-// Generic module loader with error safety and multi/single support
+// Generic module loader with error safety and only default export support
 async function loadModules<T>(dir: string): Promise<T[]> {
   const modules: T[] = [];
   const fullPath = join(import.meta.dir, dir);
@@ -32,15 +32,7 @@ async function loadModules<T>(dir: string): Promise<T[]> {
       const mod = await import(file);
       const exported = mod.default;
       if (!exported) continue;
-
-      // If moduleType is 'multi' or it's an array, load all
-      if (Array.isArray(exported)) {
-        modules.push(...exported);
-      } else if (exported.meta?.moduleType === "multi" && exported.modules) {
-        modules.push(...exported.modules);
-      } else {
-        modules.push(exported);
-      }
+      modules.push(exported);
     } catch (err) {
       logger.warn(`Failed to load module at ${file}:`, err);
       continue;

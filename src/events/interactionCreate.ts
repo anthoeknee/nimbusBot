@@ -3,7 +3,10 @@ import { Event } from "../types/event";
 import { Command } from "../types/command";
 import { Client, Interaction, MessageFlags } from "discord.js";
 import { logger } from "../utils/logger";
-import { eventErrorHandler, commandErrorHandler } from "../middleware/errorHandler";
+import {
+  eventErrorHandler,
+  commandErrorHandler,
+} from "../middleware/errorHandler";
 import { handleModalSubmit } from "../services/codeEditor";
 import { permissions } from "../middleware/permissions";
 
@@ -22,7 +25,7 @@ const event: Event<"interactionCreate"> = {
         logger.error("Modal submit error:", error);
         await interaction.reply({
           content: "❌ An error occurred while processing your request.",
-          ephemeral: true
+          ephemeral: true,
         });
         return;
       }
@@ -37,7 +40,9 @@ const event: Event<"interactionCreate"> = {
 
     // If there's already an execution for this interaction, wait for it
     if (executionLocks.has(lockKey)) {
-      logger.warn(`Duplicate interaction execution detected for ${lockKey}, waiting for existing execution`);
+      logger.warn(
+        `Duplicate interaction execution detected for ${lockKey}, waiting for existing execution`,
+      );
       await executionLocks.get(lockKey);
       return;
     }
@@ -45,52 +50,65 @@ const event: Event<"interactionCreate"> = {
     // Create a new execution promise
     const executionPromise = (async () => {
       try {
-        logger.info(`Interaction received: ${interaction.commandName} from user ${interaction.user.tag} (${interaction.user.id})`);
+        logger.info(
+          `Interaction received: ${interaction.commandName} from user ${interaction.user.tag} (${interaction.user.id})`,
+        );
 
         // @ts-ignore
         const commands: Map<string, Command> = interaction.client.commands;
         const command = commands.get(interaction.commandName);
 
         if (!command) {
-          throw new Error(`No command matching ${interaction.commandName} was found.`);
+          throw new Error(
+            `No command matching ${interaction.commandName} was found.`,
+          );
         }
 
         // Add permission check here
         if (command.meta.permissions) {
-          const requiredPerms = Array.isArray(command.meta.permissions) 
-            ? command.meta.permissions 
+          const requiredPerms = Array.isArray(command.meta.permissions)
+            ? command.meta.permissions
             : [command.meta.permissions];
-          
-          const hasPermission = permissions(requiredPerms)(interaction, (reason) => {
-            throw new Error(reason);
-          });
-          
+
+          const hasPermission = permissions(requiredPerms)(
+            interaction,
+            (reason) => {
+              throw new Error(reason);
+            },
+          );
+
           if (!hasPermission) {
             return; // Error already thrown above
           }
         }
 
-        logger.debug(`Executing command: ${interaction.commandName} for user ${interaction.user.tag}`);
+        logger.debug(
+          `Executing command: ${interaction.commandName} for user ${interaction.user.tag}`,
+        );
 
         // Execute command with enhanced error handling
-        await commandErrorHandler(
-          async (interaction) => {
-            const commandPromise = command.execute(interaction);
-            const timeoutPromise = new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Command execution timeout')), 30000)
-            );
+        await commandErrorHandler(async (interaction) => {
+          const commandPromise = command.execute(interaction);
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(
+              () => reject(new Error("Command execution timeout")),
+              30000,
+            ),
+          );
 
-            await Promise.race([commandPromise, timeoutPromise]);
-          },
-          interaction.commandName
-        )(interaction);
+          await Promise.race([commandPromise, timeoutPromise]);
+        }, interaction.commandName)(interaction);
 
         const executionTime = Date.now() - startTime;
-        logger.info(`Command ${interaction.commandName} completed successfully in ${executionTime}ms`);
-
+        logger.info(
+          `Command ${interaction.commandName} completed successfully in ${executionTime}ms`,
+        );
       } catch (error) {
         const executionTime = Date.now() - startTime;
-        logger.error(`Error executing command ${interaction.commandName} for user ${interaction.user.tag}:`, error);
+        logger.error(
+          `Error executing command ${interaction.commandName} for user ${interaction.user.tag}:`,
+          error,
+        );
         logger.error(`Command execution time: ${executionTime}ms`);
 
         // The enhanced error handler will handle the user response
@@ -106,10 +124,12 @@ const event: Event<"interactionCreate"> = {
     } finally {
       // Clean up the lock after execution
       executionLocks.delete(lockKey);
-      
+
       // Clean up old locks periodically
       if (executionLocks.size > 100) {
-        logger.debug(`Cleaning up execution locks, current size: ${executionLocks.size}`);
+        logger.debug(
+          `Cleaning up execution locks, current size: ${executionLocks.size}`,
+        );
         for (const [key, promise] of executionLocks.entries()) {
           // Remove settled promises
           promise.catch(() => {}); // Handle any unhandled rejections

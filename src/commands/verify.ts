@@ -8,11 +8,10 @@ import {
   GuildMember,
   Role,
 } from "discord.js";
-import { Command } from "../types/command";
-import { commandErrorHandler } from "../middleware/errorHandler";
-import { settings } from "../services/db";
-import { VerificationConfig } from "../services/db/types";
-import { database } from "../services/db";
+import { Command } from "@/types/command";
+import { commandErrorHandler } from "@/middleware/errorHandler";
+import { settings, database } from "../services/db";
+import { VerificationConfig } from "../services/db/repositories/guilds";
 
 const VERIFY_SETTING_KEY = "verification_config";
 
@@ -104,8 +103,14 @@ export const command: Command = {
           true
         ) as TextChannel;
         const role = interaction.options.getRole("role", true) as Role;
-        const acceptEmojiStr = interaction.options.getString("accept_emoji", true);
-        const rejectEmojiStr = interaction.options.getString("reject_emoji", true);
+        const acceptEmojiStr = interaction.options.getString(
+          "accept_emoji",
+          true
+        );
+        const rejectEmojiStr = interaction.options.getString(
+          "reject_emoji",
+          true
+        );
         const kickOnReject =
           interaction.options.getBoolean("kick_on_reject") ?? false;
         const messageId = interaction.options.getString("message");
@@ -142,7 +147,7 @@ export const command: Command = {
             ephemeral: true,
           });
         }
-        
+
         const parseEmoji = (emoji: string) => {
           if (emoji.startsWith("<") && emoji.endsWith(">")) {
             const id = emoji.match(/\d{15,}/)?.[0];
@@ -209,7 +214,11 @@ export const command: Command = {
             }
           } catch {}
         }
-        await settings.deleteBySetting(VERIFY_SETTING_KEY, undefined, guildRow.id);
+        await settings.deleteBySetting(
+          VERIFY_SETTING_KEY,
+          undefined,
+          guildRow.id
+        );
         await interaction.reply({
           content: `�� Verification disabled.`,
           ephemeral: true,
@@ -242,7 +251,8 @@ export const command: Command = {
           ephemeral: true,
         });
       }
-    }
+    },
+    "verify"
   ),
 };
 

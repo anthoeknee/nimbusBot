@@ -28,7 +28,7 @@ const BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
 
 // Helper: Fetch media from URL and convert to base64
 async function fetchMediaAsBase64(
-  url: string
+  url: string,
 ): Promise<{ data: string; mimeType: string }> {
   try {
     const response = await fetch(url);
@@ -71,7 +71,7 @@ async function fetchMediaAsBase64(
     throw new Error(
       `Error fetching media from URL: ${
         error instanceof Error ? error.message : String(error)
-      }`
+      }`,
     );
   }
 }
@@ -92,7 +92,7 @@ async function toGeminiContents(messages: AIChatRequest["messages"]) {
           if (contentItem.source.type === "url") {
             try {
               const { data, mimeType } = await fetchMediaAsBase64(
-                contentItem.source.url
+                contentItem.source.url,
               );
               parts.push({
                 inline_data: {
@@ -103,7 +103,7 @@ async function toGeminiContents(messages: AIChatRequest["messages"]) {
             } catch (error) {
               console.error(
                 `Failed to process media from URL: ${contentItem.source.url}`,
-                error
+                error,
               );
               // Continue with other parts instead of failing completely
               parts.push({
@@ -114,12 +114,12 @@ async function toGeminiContents(messages: AIChatRequest["messages"]) {
             }
           } else {
             throw new Error(
-              `Unsupported source type: ${contentItem.source.type}`
+              `Unsupported source type: ${contentItem.source.type}`,
             );
           }
         } else {
           throw new Error(
-            `Unsupported content type: ${(contentItem as any).type}`
+            `Unsupported content type: ${(contentItem as any).type}`,
           );
         }
       }
@@ -267,13 +267,13 @@ export class GeminiProvider implements AIProviderInterface {
 
   // Gemini does not support speech-to-text via public API as of June 2024
   async speechToText(
-    request: AISpeechToTextRequest
+    request: AISpeechToTextRequest,
   ): Promise<AISpeechToTextResponse> {
     throw new Error("Gemini speech-to-text not implemented");
   }
 
   async textToSpeech(
-    request: AITextToSpeechRequest
+    request: AITextToSpeechRequest,
   ): Promise<AITextToSpeechResponse> {
     // Default to Gemini 2.5 Flash Preview TTS model
     const model = request.model || "gemini-2.5-flash-preview-tts";
@@ -373,7 +373,7 @@ export class GeminiProvider implements AIProviderInterface {
     throw new Error(
       "The vision method is deprecated. Please use the unified chat method instead, " +
         "which supports multimodal input including images, audio, and video. " +
-        "Example: Use chat() with messages containing content arrays that include image/audio/video parts."
+        "Example: Use chat() with messages containing content arrays that include image/audio/video parts.",
     );
   }
 

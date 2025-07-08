@@ -61,3 +61,55 @@ export function deleteSetting(
     .query("DELETE FROM settings WHERE id = ? RETURNING *")
     .get(existing.id);
 }
+
+/**
+ * Returns a fluent API for guild-scoped settings.
+ */
+export function forGuild(guildId: number) {
+  return {
+    /**
+     * Get a setting value for a guild, type-safe.
+     */
+    get: <T>(key: string): T | null => {
+      const row = getSetting(key, { guildId });
+      return row ? (JSON.parse(row.value) as T) : null;
+    },
+    /**
+     * Set a setting value for a guild.
+     */
+    set: <T>(key: string, value: T) => setSetting(key, value, { guildId }),
+    /**
+     * Delete a setting for a guild.
+     */
+    delete: (key: string) => deleteSetting(key, { guildId }),
+  };
+}
+
+/**
+ * Returns a fluent API for user-scoped settings.
+ */
+export function forUser(userId: number) {
+  return {
+    /**
+     * Get a setting value for a user, type-safe.
+     */
+    get: <T>(key: string): T | null => {
+      const row = getSetting(key, { userId });
+      return row ? (JSON.parse(row.value) as T) : null;
+    },
+    /**
+     * Set a setting value for a user.
+     */
+    set: <T>(key: string, value: T) => setSetting(key, value, { userId }),
+    /**
+     * Delete a setting for a user.
+     */
+    delete: (key: string) => deleteSetting(key, { userId }),
+  };
+}
+
+export const settings = {
+  get: getSetting,
+  set: setSetting,
+  delete: deleteSetting,
+};

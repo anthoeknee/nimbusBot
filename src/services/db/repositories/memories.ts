@@ -1,17 +1,17 @@
 import { db } from "../client";
+import { serializeEmbedding, deserializeEmbedding } from "../embeddingUtils";
 
 export type Memory = {
   id: number;
   userId?: number | null;
   guildId?: number | null;
   content: string;
-  embedding: string; // stored as JSON string
+  embedding: number[];
 };
 
-export function getMemoryById(id: number): Memory | undefined {
-  return db.query("SELECT * FROM memories WHERE id = ?").get(id);
-}
-
+/**
+ * Create a new memory row with a vector embedding.
+ */
 export function createMemory({
   userId,
   guildId,
@@ -23,13 +23,22 @@ export function createMemory({
   content: string;
   embedding: number[];
 }): Memory | undefined {
-  return db
+  const row = db
     .query(
       "INSERT INTO memories (userId, guildId, content, embedding) VALUES (?, ?, ?, ?) RETURNING *"
     )
-    .get(userId ?? null, guildId ?? null, content, JSON.stringify(embedding));
+    .get(
+      userId ?? null,
+      guildId ?? null,
+      content,
+      serializeEmbedding(embedding)
+    );
+  return row && { ...row, embedding: deserializeEmbedding(row.embedding) };
 }
 
+/**
+ * Get all memories for a user or guild, with deserialized embeddings.
+ */
 export function getMemories({
   userId,
   guildId,
@@ -43,9 +52,18 @@ export function getMemories({
     query += " WHERE guildId = ?";
     params.push(guildId);
   }
-  return db.query(query).all(...params);
+  return db
+    .query(query)
+    .all(...params)
+    .map((row) => ({
+      ...row,
+      embedding: deserializeEmbedding(row.embedding),
+    }));
 }
 
+/**
+ * Find the most similar memories to a given embedding.
+ */
 export function findSimilarMemories(
   embedding: number[],
   {
@@ -53,23 +71,24 @@ export function findSimilarMemories(
     guildId,
     topK = 5,
   }: { userId?: number; guildId?: number; topK?: number } = {}
-) {
+): (Memory & { similarity: number })[] {
   const candidates = getMemories({ userId, guildId });
   const scored = candidates
-    .map((row) => {
-      const emb = JSON.parse(row.embedding);
-      return { ...row, similarity: cosineSimilarity(embedding, emb) };
-    })
+    .map((row) => ({
+      ...row,
+      similarity: cosineSimilarity(embedding, row.embedding),
+    }))
     .sort((a, b) => b.similarity - a.similarity)
     .slice(0, topK);
   return scored;
 }
 
-function cosineSimilarity(a: number[], b: number[]) {
-  if (a.length !== b.length) return 0;
+/**
+ * Compute cosine similarity between two vectors.
+ */
+function cosineSimilarity(a: number[], b: number[]): number {
   const dot = a.reduce((sum, ai, i) => sum + ai * b[i], 0);
   const normA = Math.sqrt(a.reduce((sum, ai) => sum + ai * ai, 0));
   const normB = Math.sqrt(b.reduce((sum, bi) => sum + bi * bi, 0));
-  if (normA === 0 || normB === 0) return 0;
   return dot / (normA * normB);
 }

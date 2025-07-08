@@ -45,7 +45,7 @@ export class GroqProvider implements AIProviderInterface {
   }
 
   async speechToText(
-    request: AISpeechToTextRequest
+    request: AISpeechToTextRequest,
   ): Promise<AISpeechToTextResponse> {
     const form = new FormData();
     let audioData: BlobPart;
@@ -75,7 +75,7 @@ export class GroqProvider implements AIProviderInterface {
         method: "POST",
         headers: { Authorization: `Bearer ${GROQ_API_KEY}` }, // Don't set Content-Type for FormData
         body: form,
-      }
+      },
     );
     if (!res.ok)
       throw new Error(`Groq speech-to-text error: ${res.statusText}`);
@@ -84,7 +84,7 @@ export class GroqProvider implements AIProviderInterface {
   }
 
   async textToSpeech(
-    request: AITextToSpeechRequest
+    request: AITextToSpeechRequest,
   ): Promise<AITextToSpeechResponse> {
     // Groq does not currently support TTS (as of docs provided)
     throw new Error("Groq text-to-speech not implemented");

@@ -27,18 +27,18 @@ export function createUser({
 }): User | undefined {
   return db
     .query(
-      "INSERT INTO users (discordId, username, displayName) VALUES (?, ?, ?) RETURNING *"
+      "INSERT INTO users (discordId, username, displayName) VALUES (?, ?, ?) RETURNING *",
     )
     .get(discordId, username, displayName);
 }
 
 export function updateUser(
   id: number,
-  { username, displayName }: { username: string; displayName: string }
+  { username, displayName }: { username: string; displayName: string },
 ): User | undefined {
   return db
     .query(
-      "UPDATE users SET username = ?, displayName = ? WHERE id = ? RETURNING *"
+      "UPDATE users SET username = ?, displayName = ? WHERE id = ? RETURNING *",
     )
     .get(username, displayName, id);
 }

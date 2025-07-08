@@ -1,19 +1,24 @@
 import { Message, Attachment } from "discord.js";
-import { AIProvider, AISpeechToTextRequest, AISpeechToTextResponse } from "../../types/ai";
+import {
+  AIProvider,
+  AISpeechToTextRequest,
+  AISpeechToTextResponse,
+} from "../../types/ai";
 import { AIClient } from "./client";
 
 // Core extraction function: extracts speech from a Discord message's audio attachment
 export async function extractSpeechFromMessage(
   message: Message,
-  options: { provider: AIProvider; model?: string; language?: string }
+  options: { provider: AIProvider; model?: string; language?: string },
 ): Promise<AISpeechToTextResponse | null> {
   // Find the first audio attachment (Discord voice messages are .ogg, .mp3, .wav, etc)
-  const audioAttachment = message.attachments.find((att: Attachment) =>
-    att.contentType?.startsWith("audio") ||
-    att.name.endsWith(".ogg") ||
-    att.name.endsWith(".mp3") ||
-    att.name.endsWith(".wav") ||
-    att.name.endsWith(".m4a")
+  const audioAttachment = message.attachments.find(
+    (att: Attachment) =>
+      att.contentType?.startsWith("audio") ||
+      att.name.endsWith(".ogg") ||
+      att.name.endsWith(".mp3") ||
+      att.name.endsWith(".wav") ||
+      att.name.endsWith(".m4a"),
   );
   if (!audioAttachment) return null;
 
@@ -39,7 +44,7 @@ export async function extractSpeechFromMessage(
 export async function handleVoiceMessage(
   message: Message,
   options: { provider: AIProvider; model?: string; language?: string },
-  onText: (text: string, response: AISpeechToTextResponse) => Promise<void>
+  onText: (text: string, response: AISpeechToTextResponse) => Promise<void>,
 ): Promise<AISpeechToTextResponse | null> {
   try {
     const sttResponse = await extractSpeechFromMessage(message, options);
@@ -47,7 +52,9 @@ export async function handleVoiceMessage(
       await onText(sttResponse.text, sttResponse);
       return sttResponse;
     } else {
-      await message.reply("❌ Sorry, I couldn't recognize any speech in your audio.");
+      await message.reply(
+        "❌ Sorry, I couldn't recognize any speech in your audio.",
+      );
       return null;
     }
   } catch (error: any) {

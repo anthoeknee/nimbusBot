@@ -7,7 +7,7 @@ const event: Event<"ready"> = {
   once: true,
   execute: async (client: Client) => {
     console.log(`Logged in as ${client.user?.tag}!`);
-  }
+  },
 };
 
 export default event;

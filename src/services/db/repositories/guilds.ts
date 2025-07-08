@@ -28,14 +28,14 @@ export function createGuild({
 }): Guild | undefined {
   return db
     .query(
-      "INSERT INTO guilds (discordGuildId, name, iconUrl) VALUES (?, ?, ?) RETURNING *"
+      "INSERT INTO guilds (discordGuildId, name, iconUrl) VALUES (?, ?, ?) RETURNING *",
     )
     .get(discordGuildId, name, iconUrl ?? null);
 }
 
 export function updateGuild(
   id: number,
-  { name, iconUrl }: { name: string; iconUrl?: string }
+  { name, iconUrl }: { name: string; iconUrl?: string },
 ): Guild | undefined {
   return db
     .query("UPDATE guilds SET name = ?, iconUrl = ? WHERE id = ? RETURNING *")
